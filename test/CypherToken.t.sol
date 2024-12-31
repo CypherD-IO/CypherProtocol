@@ -11,5 +11,6 @@ contract CyperTokenTest is Test {
         assertEq(token.name(), "Cypher");
         assertEq(token.symbol(), "CYPR");
         assertEq(token.totalSupply(), 499_500_000);
+        assertEq(token.balanceOf(address(this)), token.totalSupply());
     }
 }
