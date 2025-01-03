@@ -3,6 +3,19 @@ pragma solidity =0.8.28;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 interface IVoteLocker is IERC721 {
+    struct LockedBalance {
+        int128 amount;
+        uint256 end;
+    }    
+
+    error ZeroValue();
+    error UnlockTimeNotInFuture();
+    error LockDurationExceedsMaximum();
+
+    /// @notice Calculate total voting power
+    /// @param timestamp Time at which to caluclate voting power
+    function totalSupplyAt(uint256 timestamp) external view returns (uint256);
+
     /// @notice Lock tokens to create a veNFT with a given lock duration.
     /// @param value Amount of tokens to lock
     /// @param duration Seconds to lock for (will be rounded down to nearest voting period)
