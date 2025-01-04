@@ -8,6 +8,13 @@ interface IVoteLocker is IERC721 {
         uint256 end;
     }    
 
+    struct Point {
+        int128 bias;
+        int128 slope; // # -dweight / dt
+        uint256 ts;
+        uint256 indefinite;
+    }
+
     error ZeroValue();
     error UnlockTimeNotInFuture();
     error LockDurationExceedsMaximum();
