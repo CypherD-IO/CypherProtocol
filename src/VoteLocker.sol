@@ -49,19 +49,19 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
         _checkAuthorized(_ownerOf(tokenId), spender, tokenId);
     }
 
-    // --- Logic ---
+    // --- Mutations ---
 
     /// @inheritdoc IVoteLocker
-    function lock(uint256 value, uint256 duration) external nonReentrant returns (uint256) {
-        return _lock(value, duration, msg.sender);
+    function createLock(uint256 value, uint256 duration) external nonReentrant returns (uint256) {
+        return _createLock(value, duration, msg.sender);
     }
 
     /// @inheritdoc IVoteLocker
-    function lockFor(uint256 value, uint256 duration, address to) external nonReentrant returns (uint256) {
-        return _lock(value, duration, to);
+    function createLockFor(uint256 value, uint256 duration, address to) external nonReentrant returns (uint256) {
+        return _createLock(value, duration, to);
     }
 
-    function _lock(uint256 value, uint256 duration, address to) internal returns (uint256 tokenId) {
+    function _createLock(uint256 value, uint256 duration, address to) internal returns (uint256 tokenId) {
         uint256 unlockTime = block.timestamp + duration;
         unchecked {
             unlockTime = (unlockTime / VOTE_PERIOD) * VOTE_PERIOD;
@@ -85,6 +85,7 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
         LockedBalance memory newLockedBalance;
         newLockedBalance.amount = lockedBalance.amount + value.toInt256().toInt128();
         if (unlockTime > 0) {
+            // Creating a new locked position.
             newLockedBalance.end = unlockTime;
         } else {
             newLockedBalance.end = lockedBalance.end;
@@ -102,13 +103,19 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
 
 
     /// @inheritdoc IVoteLocker
-    function addValue(uint256 tokenId, uint256 value) external nonReentrant {
+    function depositFor(uint256 tokenId, uint256 value) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
     }
 
     /// @inheritdoc IVoteLocker
-    function addDuration(uint256 tokenId, uint256 duration) external nonReentrant {
+    function increaseUnlockTime(uint256 tokenId, uint256 duration) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
+    }
+
+    /// @inheritdoc IVoteLocker
+    function withdraw(uint256 tokenId) external nonReentrant {
+        _checkExistenceAndAuthorization(msg.sender, tokenId);
+        _burn(tokenId);
     }
 
     /// @inheritdoc IVoteLocker
@@ -121,16 +128,19 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
     }
 
-    /// @inheritdoc IVoteLocker
-    function withdraw(uint256 tokenId) external nonReentrant {
-        _checkExistenceAndAuthorization(msg.sender, tokenId);
-        _burn(tokenId);
-    }
+    // --- Views ---
 
     /// @inheritdoc IVoteLocker
     function totalSupplyAt(uint256 timestamp) external view returns (uint256) {
         return 0;  // TODO
     }
+
+    /// @inheritdoc IVoteLocker
+    function balanceOfAt(uint256 tokenId, uint256 timestamp) external view returns (uint256) {
+        return 0;  // TODO
+    }
+
+    // --- Internals ---
 
     function _checkpoint(uint256 tokenId, LockedBalance memory oldLocked, LockedBalance memory newLocked) internal {
         Point memory uOld;
