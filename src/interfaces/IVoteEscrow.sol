@@ -2,7 +2,7 @@ pragma solidity =0.8.28;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
-interface IVoteLocker is IERC721 {
+interface IVoteEscrow is IERC721 {
     struct LockedBalance {
         int128 amount;
         uint256 end;

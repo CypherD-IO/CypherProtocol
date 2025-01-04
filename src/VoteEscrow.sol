@@ -2,12 +2,14 @@
 pragma solidity 0.8.28;
 
 import "./interfaces/ICypherToken.sol";
-import "./interfaces/IVoteLocker.sol";
+import "./interfaces/IVoteEscrow.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
+/// @title Voting Escrow
+/// @author Heavily inspired by Curve's VotingEscrow (https://github.com/curvefi/curve-dao-contracts/blob/567927551903f71ce5a73049e077be87111963cc/contracts/VotingEscrow.vy)
+contract VoteEscrow is IVoteEscrow, ERC721, ReentrancyGuard {
     using SafeCast for uint256;
     using SafeCast for int256;
     using SafeCast for uint128;
@@ -42,23 +44,61 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
         cypher = ICypherToken(_cypher);
     }
 
-    // --- Auth Helpers ---
-
-    function _checkExistenceAndAuthorization(address spender, uint256 tokenId) internal view {
-        //  _ownerOf() requires the token to be owned, which is equivalent to existence.
-        _checkAuthorized(_ownerOf(tokenId), spender, tokenId);
-    }
-
     // --- Mutations ---
 
-    /// @inheritdoc IVoteLocker
+    /// @inheritdoc IVoteEscrow
     function createLock(uint256 value, uint256 duration) external nonReentrant returns (uint256) {
         return _createLock(value, duration, msg.sender);
     }
 
-    /// @inheritdoc IVoteLocker
+    /// @inheritdoc IVoteEscrow
     function createLockFor(uint256 value, uint256 duration, address to) external nonReentrant returns (uint256) {
         return _createLock(value, duration, to);
+    }
+
+    /// @inheritdoc IVoteEscrow
+    function depositFor(uint256 tokenId, uint256 value) external nonReentrant {
+        _checkExistenceAndAuthorization(msg.sender, tokenId);
+    }
+
+    /// @inheritdoc IVoteEscrow
+    function increaseUnlockTime(uint256 tokenId, uint256 duration) external nonReentrant {
+        _checkExistenceAndAuthorization(msg.sender, tokenId);
+    }
+
+    /// @inheritdoc IVoteEscrow
+    function withdraw(uint256 tokenId) external nonReentrant {
+        _checkExistenceAndAuthorization(msg.sender, tokenId);
+        _burn(tokenId);
+    }
+
+    /// @inheritdoc IVoteEscrow
+    function lockIndefinite(uint256 tokenId) external nonReentrant {
+        _checkExistenceAndAuthorization(msg.sender, tokenId);
+    }
+
+    /// @inheritdoc IVoteEscrow
+    function unlock(uint256 tokenId) external nonReentrant {
+        _checkExistenceAndAuthorization(msg.sender, tokenId);
+    }
+
+    // --- Views ---
+
+    /// @inheritdoc IVoteEscrow
+    function totalSupplyAt(uint256 timestamp) external view returns (uint256) {
+        return 0;  // TODO
+    }
+
+    /// @inheritdoc IVoteEscrow
+    function balanceOfAt(uint256 tokenId, uint256 timestamp) external view returns (uint256) {
+        return 0;  // TODO
+    }
+
+    // --- Internal Logic ---
+
+    function _checkExistenceAndAuthorization(address spender, uint256 tokenId) internal view {
+        //  _ownerOf() requires the token to be owned, which is equivalent to existence.
+        _checkAuthorized(_ownerOf(tokenId), spender, tokenId);
     }
 
     function _createLock(uint256 value, uint256 duration, address to) internal returns (uint256 tokenId) {
@@ -100,47 +140,6 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
             cypher.transferFrom(msg.sender, address(this), value);
         }
     }
-
-
-    /// @inheritdoc IVoteLocker
-    function depositFor(uint256 tokenId, uint256 value) external nonReentrant {
-        _checkExistenceAndAuthorization(msg.sender, tokenId);
-    }
-
-    /// @inheritdoc IVoteLocker
-    function increaseUnlockTime(uint256 tokenId, uint256 duration) external nonReentrant {
-        _checkExistenceAndAuthorization(msg.sender, tokenId);
-    }
-
-    /// @inheritdoc IVoteLocker
-    function withdraw(uint256 tokenId) external nonReentrant {
-        _checkExistenceAndAuthorization(msg.sender, tokenId);
-        _burn(tokenId);
-    }
-
-    /// @inheritdoc IVoteLocker
-    function lockIndefinite(uint256 tokenId) external nonReentrant {
-        _checkExistenceAndAuthorization(msg.sender, tokenId);
-    }
-
-    /// @inheritdoc IVoteLocker
-    function unlock(uint256 tokenId) external nonReentrant {
-        _checkExistenceAndAuthorization(msg.sender, tokenId);
-    }
-
-    // --- Views ---
-
-    /// @inheritdoc IVoteLocker
-    function totalSupplyAt(uint256 timestamp) external view returns (uint256) {
-        return 0;  // TODO
-    }
-
-    /// @inheritdoc IVoteLocker
-    function balanceOfAt(uint256 tokenId, uint256 timestamp) external view returns (uint256) {
-        return 0;  // TODO
-    }
-
-    // --- Internals ---
 
     function _checkpoint(uint256 tokenId, LockedBalance memory oldLocked, LockedBalance memory newLocked) internal {
         Point memory uOld;
