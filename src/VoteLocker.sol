@@ -84,8 +84,10 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
         supply += value;
         LockedBalance memory newLockedBalance;
         newLockedBalance.amount = lockedBalance.amount + value.toInt256().toInt128();
-        if (unlockTime > 0) {  // unlockTime == 0 implies an indefinite lock
+        if (unlockTime > 0) {
             newLockedBalance.end = unlockTime;
+        } else {
+            newLockedBalance.end = lockedBalance.end;
         }
 
         locked[tokenId] = newLockedBalance;
