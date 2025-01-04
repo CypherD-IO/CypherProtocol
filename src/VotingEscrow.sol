@@ -58,28 +58,79 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
     /// @inheritdoc IVotingEscrow
     function depositFor(uint256 tokenId, uint256 value) external nonReentrant {
-        _checkExistenceAndAuthorization(msg.sender, tokenId);
+        LockedBalance memory lockedBalance = locked[tokenId];
+
+        if (value == 0) revert ZeroValue();
+        _requireOwned(tokenId);
+        if (lockedBalance.end <= block.timestamp && !lockedBalance.isIndefinite) revert LockExpired();
+
+        if (lockedBalance.isIndefinite) indefiniteLockBalance += value;
+        _depositFor(tokenId, value, /* unlockTime */ 0, lockedBalance);
     }
 
     /// @inheritdoc IVotingEscrow
     function increaseUnlockTime(uint256 tokenId, uint256 duration) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
+
+        LockedBalance memory lockedBalance = locked[tokenId];
+        if (lockedBalance.isIndefinite) revert LockedIndefinitely();
+        if (lockedBalance.end <= block.timestamp) revert LockExpired();
+
+        uint256 unlockTime = lockedBalance.end + duration;
+        if (unlockTime > block.timestamp + MAX_LOCK_DURATION) revert LockDurationExceedsMaximum();
+        // Note: unlockTime >= lockedBalance.end > block.timestamp, so unlockTime is not in the past.
+
+        _depositFor(tokenId, /* value */ 0, unlockTime, lockedBalance);
     }
 
     /// @inheritdoc IVotingEscrow
     function withdraw(uint256 tokenId) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
+
+        LockedBalance memory lockedBalance = locked[tokenId];
+        if (lockedBalance.isIndefinite) revert LockedIndefinitely();
+        if (block.timestamp < lockedBalance.end) revert LockNotExpired();
+        uint256 value = lockedBalance.amount.toUint256();
+
         _burn(tokenId);
+        delete locked[tokenId];
+        supply -= value;
+
+        _checkpoint(tokenId, lockedBalance, LockedBalance(0, 0, false));
+
+        cypher.transfer(msg.sender, value);
     }
 
     /// @inheritdoc IVotingEscrow
     function lockIndefinite(uint256 tokenId) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
+        LockedBalance memory lockedBalance = locked[tokenId];
+        if (lockedBalance.isIndefinite) revert LockedIndefinitely();
+        if (lockedBalance.end <= block.timestamp) revert LockExpired();
+
+        int128 amount = lockedBalance.amount;
+        indefiniteLockBalance += amount.toUint256();
+
+        LockedBalance memory newLockedBalance = LockedBalance({amount: amount, end: 0, isIndefinite: true});
+        locked[tokenId] = newLockedBalance;
+        _checkpoint(tokenId, lockedBalance, newLockedBalance);
     }
 
     /// @inheritdoc IVotingEscrow
-    function unlock(uint256 tokenId) external nonReentrant {
+    function unlockIndefinite(uint256 tokenId) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
+        LockedBalance memory lockedBalance = locked[tokenId];
+        if (!lockedBalance.isIndefinite) revert NotLockedIndefinitely();
+
+        int128 amount = lockedBalance.amount;
+        indefiniteLockBalance -= amount.toUint256();
+
+        LockedBalance memory newLockedBalance;
+        newLockedBalance.amount = amount;
+        newLockedBalance.end = ((block.timestamp + MAX_LOCK_DURATION) / VOTE_PERIOD) * VOTE_PERIOD;
+        newLockedBalance.isIndefinite = false;  // default value, but want to be explicit
+        locked[tokenId] = newLockedBalance;
+        _checkpoint(tokenId, lockedBalance, newLockedBalance);
     }
 
     // --- Views ---
@@ -94,7 +145,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         return 0;  // TODO
     }
 
-    // --- Internal Logic ---
+    // --- Internals ---
 
     function _checkExistenceAndAuthorization(address spender, uint256 tokenId) internal view {
         //  _ownerOf() requires the token to be owned, which is equivalent to existence.
@@ -149,7 +200,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         uint256 _epoch = epoch;
 
         if (tokenId != 0) {
-            uNew.indefinite = newLocked.isIndefinite ? newLocked.amount.toInt128().toUint256() : 0;
+            uNew.indefinite = newLocked.isIndefinite ? newLocked.amount.toUint256() : 0;
             if (oldLocked.end > block.timestamp && oldLocked.amount > 0) {
                 uOld.slope = oldLocked.amount / iMAX_LOCK_DURATION;
                 uOld.bias = uOld.slope * (oldLocked.end - block.timestamp).toInt256().toInt128();

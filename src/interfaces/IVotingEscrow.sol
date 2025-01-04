@@ -19,6 +19,10 @@ interface IVotingEscrow is IERC721 {
     error ZeroValue();
     error UnlockTimeNotInFuture();
     error LockDurationExceedsMaximum();
+    error LockExpired();
+    error LockedIndefinitely();
+    error LockNotExpired();
+    error NotLockedIndefinitely();
 
     // --- Mutations ---
 
@@ -54,7 +58,7 @@ interface IVotingEscrow is IERC721 {
 
     /// @notice Convert an indefinitely locked position into a decaying one with the maximum duration.
     /// @param tokenId Id of the veNFT to covert to a time decaying position
-    function unlock(uint256 tokenId) external;
+    function unlockIndefinite(uint256 tokenId) external;
 
     // --- Views ---
 
