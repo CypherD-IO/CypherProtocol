@@ -89,6 +89,7 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
         } else {
             newLockedBalance.end = lockedBalance.end;
         }
+        newLockedBalance.isIndefinite = lockedBalance.isIndefinite;
 
         locked[tokenId] = newLockedBalance;
         _checkpoint(tokenId, lockedBalance, newLockedBalance);
@@ -139,7 +140,7 @@ contract VoteLocker is IVoteLocker, ERC721, ReentrancyGuard {
         uint256 _epoch = epoch;
 
         if (tokenId != 0) {
-            uNew.indefinite = newLocked.end == 0 ? newLocked.amount.toInt128().toUint256() : 0;
+            uNew.indefinite = newLocked.isIndefinite ? newLocked.amount.toInt128().toUint256() : 0;
             if (oldLocked.end > block.timestamp && oldLocked.amount > 0) {
                 uOld.slope = oldLocked.amount / iMAX_LOCK_DURATION;
                 uOld.bias = uOld.slope * (oldLocked.end - block.timestamp).toInt256().toInt128();

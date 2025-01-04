@@ -6,6 +6,7 @@ interface IVoteLocker is IERC721 {
     struct LockedBalance {
         int128 amount;
         uint256 end;
+        bool isIndefinite;
     }    
 
     struct Point {
