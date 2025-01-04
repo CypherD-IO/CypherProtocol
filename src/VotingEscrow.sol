@@ -2,14 +2,14 @@
 pragma solidity 0.8.28;
 
 import "./interfaces/ICypherToken.sol";
-import "./interfaces/IVoteEscrow.sol";
+import "./interfaces/IVotingEscrow.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /// @title Voting Escrow
 /// @author Heavily inspired by Curve's VotingEscrow (https://github.com/curvefi/curve-dao-contracts/blob/567927551903f71ce5a73049e077be87111963cc/contracts/VotingEscrow.vy)
-contract VoteEscrow is IVoteEscrow, ERC721, ReentrancyGuard {
+contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     using SafeCast for uint256;
     using SafeCast for int256;
     using SafeCast for uint128;
@@ -46,50 +46,50 @@ contract VoteEscrow is IVoteEscrow, ERC721, ReentrancyGuard {
 
     // --- Mutations ---
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function createLock(uint256 value, uint256 duration) external nonReentrant returns (uint256) {
         return _createLock(value, duration, msg.sender);
     }
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function createLockFor(uint256 value, uint256 duration, address to) external nonReentrant returns (uint256) {
         return _createLock(value, duration, to);
     }
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function depositFor(uint256 tokenId, uint256 value) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
     }
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function increaseUnlockTime(uint256 tokenId, uint256 duration) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
     }
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function withdraw(uint256 tokenId) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
         _burn(tokenId);
     }
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function lockIndefinite(uint256 tokenId) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
     }
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function unlock(uint256 tokenId) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
     }
 
     // --- Views ---
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function totalSupplyAt(uint256 timestamp) external view returns (uint256) {
         return 0;  // TODO
     }
 
-    /// @inheritdoc IVoteEscrow
+    /// @inheritdoc IVotingEscrow
     function balanceOfAt(uint256 tokenId, uint256 timestamp) external view returns (uint256) {
         return 0;  // TODO
     }
