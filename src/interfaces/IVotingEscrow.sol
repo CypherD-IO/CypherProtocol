@@ -66,7 +66,7 @@ interface IVotingEscrow is IERC721 {
     /// @param timestamp Time at which to caluclate voting power
     function totalSupplyAt(uint256 timestamp) external view returns (uint256);
 
-    /// @notice Calculate a position's total voting power
+    /// @notice Calculate a position's total voting power.
     /// @param tokenId Id of the token to calculate the voting power for
     /// @param timestamp Time at which to caluclate voting power
     function balanceOfAt(uint256 tokenId, uint256 timestamp) external view returns (uint256);

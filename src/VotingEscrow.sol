@@ -12,7 +12,6 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     using SafeCast for uint256;
     using SafeCast for int256;
-    using SafeCast for uint128;
     using SafeCast for int128;
 
     // --- Constants ---
@@ -137,12 +136,39 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
     /// @inheritdoc IVotingEscrow
     function totalSupplyAt(uint256 timestamp) external view returns (uint256) {
-        return 0;  // TODO
+        // TODO: extend to timestamps in the past to support bribes.
+        Point memory lastPoint = pointHistory[epoch];
+        uint256 t_i = (lastPoint.ts / VOTE_PERIOD) * VOTE_PERIOD;
+        for (uint256 i = 0; i < 255; i++) {
+            t_i += VOTE_PERIOD;
+            int128 dSlope = 0;
+            if (t_i > timestamp) {
+                t_i = timestamp;
+            } else {
+                dSlope = slopeChanges[t_i];
+            }
+            lastPoint.bias -= lastPoint.slope * (t_i - timestamp).toInt256().toInt128();
+            if (t_i == timestamp) {
+                break;
+            }
+            lastPoint.slope += dSlope;
+            lastPoint.ts = t_i;
+        }
+
+        if (lastPoint.bias < 0) return 0;
+        return lastPoint.bias.toUint256();
     }
 
     /// @inheritdoc IVotingEscrow
     function balanceOfAt(uint256 tokenId, uint256 timestamp) external view returns (uint256) {
-        return 0;  // TODO
+        // TODO: extend to timestamps in the past to support bribes.
+        uint256 tokenEpoch = tokenPointEpoch[tokenId];
+        if (tokenEpoch == 0) return 0;
+        Point memory lastPoint = tokenPointHistory[tokenId][tokenEpoch];
+        if (lastPoint.indefinite != 0) return lastPoint.indefinite;
+        lastPoint.bias -= lastPoint.slope * (timestamp - lastPoint.ts).toInt256().toInt128();
+        if (lastPoint.bias < 0) return 0;
+        return lastPoint.bias.toUint256();
     }
 
     // --- Internals ---
@@ -234,7 +260,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
             t_i = (lastCheckpoint / VOTE_PERIOD) * VOTE_PERIOD;
         }
 
-        // Iterate over epochs until reaching the present. Maximum lookback time is 256 * VOTE_PERIOD.
+        // Iterate over epochs until reaching the present. Maximum lookback time is 255 * VOTE_PERIOD.
         // If more time than this passes without interaction, voting weight will be incorrect.
         // In such an event, users can still withdraw.
         for (uint256 i = 0; i < 255; i++) {
