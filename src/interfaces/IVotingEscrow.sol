@@ -61,6 +61,15 @@ interface IVotingEscrow is IERC721 {
         uint256 unlockTime
     );
 
+    event Merge(
+        address indexed sender,
+        uint256 indexed from,
+        uint256 indexed to,
+        uint256 amountFrom,
+        uint256 amountTo,
+        uint256 unlockTime
+    );
+
     // --- Errors ---
 
     error ZeroValue();
@@ -71,6 +80,7 @@ interface IVotingEscrow is IERC721 {
     error LockNotExpired();
     error NotLockedIndefinitely();
     error NewUnlockTimeNotAfterOld();
+    error IdenticalTokenIds();
 
     // --- Mutations ---
 
@@ -107,6 +117,9 @@ interface IVotingEscrow is IERC721 {
     /// @notice Convert an indefinitely locked position into a decaying one with the maximum duration.
     /// @param tokenId Id of the veNFT to covert to a time decaying position
     function unlockIndefinite(uint256 tokenId) external;
+
+    /// @notice Merge two veNFTs into one.
+    function merge(uint256 from, uint256 to) external;
 
     // --- Views ---
 

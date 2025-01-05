@@ -147,6 +147,44 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         emit UnlockIndefinite(_ownerOf(tokenId), tokenId, amount.toUint256(), newLockedBalance.end);
     }
 
+    /// @inheritdoc IVotingEscrow
+    function merge(uint256 from, uint256 to) external nonReentrant {
+        if (from == to) revert IdenticalTokenIds();
+        _checkExistenceAndAuthorization(msg.sender, from);
+        _checkExistenceAndAuthorization(msg.sender, to);
+
+        LockedBalance memory lockedTo = locked[to];
+        if (lockedTo.end <= block.timestamp && !lockedTo.isIndefinite) revert LockExpired();
+
+        LockedBalance memory lockedFrom = locked[from];
+        if (lockedFrom.isIndefinite) revert LockedIndefinitely();
+
+        uint256 unlockTime = lockedTo.end > lockedFrom.end ? lockedTo.end : lockedFrom.end;
+
+        _burn(from);
+        delete locked[from];
+        _checkpoint(from, lockedFrom, LockedBalance(0, 0, false));
+
+        LockedBalance memory newLockedTo;
+        newLockedTo.amount = lockedTo.amount + lockedFrom.amount;
+        newLockedTo.isIndefinite = lockedTo.isIndefinite;
+        if (newLockedTo.isIndefinite) {
+            indefiniteLockBalance += lockedFrom.amount.toUint256();
+        } else {
+            newLockedTo.end = unlockTime;
+        }
+        locked[to] = newLockedTo;
+        _checkpoint(to, lockedTo, newLockedTo);
+
+        emit Merge(
+            msg.sender,
+            from,
+            to,
+            lockedFrom.amount.toUint256(),
+            lockedTo.amount.toUint256(),
+            newLockedTo.end);
+    }
+
     // --- Views ---
 
     /// @inheritdoc IVotingEscrow
