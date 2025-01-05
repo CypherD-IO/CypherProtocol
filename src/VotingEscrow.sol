@@ -70,19 +70,20 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     }
 
     /// @inheritdoc IVotingEscrow
-    function increaseUnlockTime(uint256 tokenId, uint256 duration) external nonReentrant {
+    function increaseUnlockTime(uint256 tokenId, uint256 unlockTime) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
 
         LockedBalance memory lockedBalance = locked[tokenId];
         if (lockedBalance.isIndefinite) revert LockedIndefinitely();
         if (lockedBalance.end <= block.timestamp) revert LockExpired();
 
-        uint256 unlockTime = lockedBalance.end + duration;
         unchecked {
             unlockTime = (unlockTime / VOTE_PERIOD) * VOTE_PERIOD;
         }
+
         if (unlockTime > block.timestamp + MAX_LOCK_DURATION) revert LockDurationExceedsMaximum();
-        // Note: unlockTime >= lockedBalance.end > block.timestamp, so unlockTime is not in the past.
+        if (unlockTime <= lockedBalance.end) revert NewUnlockTimeNotAfterOld();
+        // Note: unlockTime > lockedBalance.end > block.timestamp, so unlockTime is not in the past.
 
         _depositFor(tokenId, /* value */ 0, unlockTime, lockedBalance);
 

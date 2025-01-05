@@ -70,6 +70,7 @@ interface IVotingEscrow is IERC721 {
     error LockedIndefinitely();
     error LockNotExpired();
     error NotLockedIndefinitely();
+    error NewUnlockTimeNotAfterOld();
 
     // --- Mutations ---
 
@@ -91,8 +92,8 @@ interface IVotingEscrow is IERC721 {
 
     /// @notice Increase the lock duration of an existing veNFT.
     /// @param tokenId Id of the veNFT to extend the lock duration of
-    /// @param duration Seconds of additional time to add (rounded down to nearest voting period)
-    function increaseUnlockTime(uint256 tokenId, uint256 duration) external;
+    /// @param unlockTime Timestamp of new unlock; must exceed prior unlock time
+    function increaseUnlockTime(uint256 tokenId, uint256 unlockTime) external;
 
     /// @notice Withdraw underlying tokens. Position must not be indefinitely locked and
     ///         must be fully decayed.
