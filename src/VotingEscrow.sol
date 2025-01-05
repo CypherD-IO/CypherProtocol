@@ -34,7 +34,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     mapping (uint256 timestamp => int128 slopeChange) public slopeChanges;
     mapping (uint256 epoch => Point aggregatePoint) public pointHistory;
     mapping (uint256 tokenId => uint256 tokenEpoch) public tokenPointEpoch;
-    mapping (uint256 tokenId => Point[1_000_000_000]) internal tokenPointHistory;
+    mapping (uint256 tokenId => mapping (uint256 tokenEpoch => Point tokenPoint)) internal tokenPointHistory;
 
     // --- Constructor ---
 
@@ -151,8 +151,9 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
     /// @inheritdoc IVotingEscrow
     function totalSupplyAt(uint256 timestamp) external view returns (uint256) {
-        // TODO: extend to timestamps in the past to support bribes.
-        Point memory lastPoint = pointHistory[epoch];
+        uint256 startEpoch = epochAtOrPriorTo(timestamp, epoch, pointHistory);
+        if (startEpoch == 0) return 0;
+        Point memory lastPoint = pointHistory[startEpoch];
         uint256 t_i = (lastPoint.ts / VOTE_PERIOD) * VOTE_PERIOD;
         for (uint256 i = 0; i < 255; i++) {
             t_i += VOTE_PERIOD;
@@ -176,8 +177,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
     /// @inheritdoc IVotingEscrow
     function balanceOfAt(uint256 tokenId, uint256 timestamp) external view returns (uint256) {
-        // TODO: extend to timestamps in the past to support bribes.
-        uint256 tokenEpoch = tokenPointEpoch[tokenId];
+        uint256 tokenEpoch = epochAtOrPriorTo(timestamp, tokenPointEpoch[tokenId], tokenPointHistory[tokenId]);
         if (tokenEpoch == 0) return 0;
         Point memory lastPoint = tokenPointHistory[tokenId][tokenEpoch];
         if (lastPoint.indefinite != 0) return lastPoint.indefinite;
@@ -360,4 +360,34 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
             }
         }
     }
+
+    function epochAtOrPriorTo(
+        uint256 timestamp,
+        uint256 lastEpoch,
+        mapping (uint256 => Point) storage points
+    ) internal view returns (uint256) {
+        if (lastEpoch == 0 || points[1].ts > timestamp) return 0;
+        if (points[lastEpoch].ts <= timestamp) return lastEpoch;
+
+        // Established: points[1].ts <= timestamp && points[lastEpoch].ts > timestamp
+
+        uint256 ub = lastEpoch;
+        uint256 lb = 1;
+        uint256 mid;
+        uint256 ts;
+        while (ub > lb) {
+            mid = 1 + (ub + lb - 1) / 2;  // divup
+            ts = points[mid].ts;
+            if (ts == timestamp) {
+                return mid;
+            } else if (ts < timestamp) {
+                lb = mid;
+            } else {
+                ub = mid - 1;
+            }
+        }
+
+        return lb;
+    }
+
 }
