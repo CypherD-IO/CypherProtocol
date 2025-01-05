@@ -60,11 +60,13 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         LockedBalance memory lockedBalance = locked[tokenId];
 
         if (value == 0) revert ZeroValue();
-        _requireOwned(tokenId);
+        address tokenOwner = _requireOwned(tokenId);
         if (lockedBalance.end <= block.timestamp && !lockedBalance.isIndefinite) revert LockExpired();
 
         if (lockedBalance.isIndefinite) indefiniteLockBalance += value;
         _depositFor(tokenId, value, /* unlockTime */ 0, lockedBalance);
+
+        emit DepositFor(msg.sender, tokenOwner, tokenId, value);
     }
 
     /// @inheritdoc IVotingEscrow
@@ -76,10 +78,15 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         if (lockedBalance.end <= block.timestamp) revert LockExpired();
 
         uint256 unlockTime = lockedBalance.end + duration;
+        unchecked {
+            unlockTime = (unlockTime / VOTE_PERIOD) * VOTE_PERIOD;
+        }
         if (unlockTime > block.timestamp + MAX_LOCK_DURATION) revert LockDurationExceedsMaximum();
         // Note: unlockTime >= lockedBalance.end > block.timestamp, so unlockTime is not in the past.
 
         _depositFor(tokenId, /* value */ 0, unlockTime, lockedBalance);
+
+        emit IncreaseUnlockTime(_ownerOf(tokenId), tokenId, unlockTime);
     }
 
     /// @inheritdoc IVotingEscrow
@@ -91,6 +98,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         if (block.timestamp < lockedBalance.end) revert LockNotExpired();
         uint256 value = lockedBalance.amount.toUint256();
 
+        address tokenOwner = _ownerOf(tokenId);
         _burn(tokenId);
         delete locked[tokenId];
         supply -= value;
@@ -98,6 +106,8 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         _checkpoint(tokenId, lockedBalance, LockedBalance(0, 0, false));
 
         cypher.transfer(msg.sender, value);
+
+        emit Withdraw(tokenOwner, tokenId, value);
     }
 
     /// @inheritdoc IVotingEscrow
@@ -113,6 +123,8 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         LockedBalance memory newLockedBalance = LockedBalance({amount: amount, end: 0, isIndefinite: true});
         locked[tokenId] = newLockedBalance;
         _checkpoint(tokenId, lockedBalance, newLockedBalance);
+
+        emit LockIndefinite(_ownerOf(tokenId), tokenId, amount.toUint256());
     }
 
     /// @inheritdoc IVotingEscrow
@@ -130,6 +142,8 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         newLockedBalance.isIndefinite = false;  // default value, but want to be explicit
         locked[tokenId] = newLockedBalance;
         _checkpoint(tokenId, lockedBalance, newLockedBalance);
+
+        emit UnlockIndefinite(_ownerOf(tokenId), tokenId, amount.toUint256(), newLockedBalance.end);
     }
 
     // --- Views ---
@@ -195,6 +209,8 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         _mint(to, tokenId);
 
         _depositFor(tokenId, value, unlockTime, locked[tokenId]);
+
+        emit CreateLock(msg.sender, to, tokenId, value, unlockTime);
     }
 
     function _depositFor(uint256 tokenId, uint256 value, uint256 unlockTime, LockedBalance memory lockedBalance) internal {

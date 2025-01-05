@@ -3,6 +3,9 @@ pragma solidity =0.8.28;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 interface IVotingEscrow is IERC721 {
+
+    // --- Data Types ---
+
     struct LockedBalance {
         int128 amount;
         uint256 end;
@@ -15,6 +18,50 @@ interface IVotingEscrow is IERC721 {
         uint256 ts;
         uint256 indefinite;
     }
+
+    // --- Events ---
+
+    event CreateLock(
+        address indexed from,
+        address indexed to,
+        uint256 indexed tokenId,
+        uint256 value,
+        uint256 unlockTime
+    );
+
+    event DepositFor(
+        address indexed from,
+        address indexed tokenOwner,
+        uint256 indexed tokenId,
+        uint256 valueAdded
+    );
+
+    event IncreaseUnlockTime(
+        address indexed tokenOwner,
+        uint256 indexed tokenId,
+        uint256 newUnlockTime
+    );
+
+    event Withdraw(
+        address indexed tokenOwner,
+        uint256 indexed tokenId,
+        uint256 value
+    );
+
+    event LockIndefinite(
+        address indexed tokenOwner,
+        uint256 indexed tokenId,
+        uint256 value
+    );
+
+    event UnlockIndefinite(
+        address indexed tokenOwner,
+        uint256 indexed tokenId,
+        uint256 value,
+        uint256 unlockTime
+    );
+
+    // --- Errors ---
 
     error ZeroValue();
     error UnlockTimeNotInFuture();
