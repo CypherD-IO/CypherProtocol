@@ -39,4 +39,42 @@ contract VotingEscrowTest is Test {
         assertEq(end, ((block.timestamp + duration) / VOTE_PERIOD) * VOTE_PERIOD);
         assert(!isIndefinite);
     }
+
+    function testCreatLockForBasic() public {
+        uint256 cypherBalBefore = cypher.balanceOf(address(this));
+
+        uint256 duration = 10 * VOTE_PERIOD;
+        address to = address(0x1234);
+        uint256 id = ve.createLockFor(1e18, duration, to);
+
+        assertEq(id, 1);
+        assertEq(ve.ownerOf(id), to);
+        assertEq(cypher.balanceOf(address(this)), cypherBalBefore - 1e18);
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(1);
+        assertEq(amount, 1e18);
+        assertEq(end, ((block.timestamp + duration) / VOTE_PERIOD) * VOTE_PERIOD);
+        assert(!isIndefinite);
+    }
+
+    function testDepositForBasic() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        uint256 unlockTime = ((block.timestamp + 2 * VOTE_PERIOD) / VOTE_PERIOD) * VOTE_PERIOD;
+
+        uint256 cypherBalBefore = cypher.balanceOf(address(this));
+        ve.depositFor(id, 2e18);
+        assertEq(cypher.balanceOf(address(this)), cypherBalBefore - 2e18);
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(1);
+        assertEq(amount, 3e18);
+        assertEq(end, unlockTime);
+        assert(!isIndefinite);
+
+        vm.warp(INIT_TIMESTAMP + 3 days);
+        ve.depositFor(id, 2e18);
+        (amount, end, isIndefinite) = ve.locked(1);
+        assertEq(amount, 5e18);
+        assertEq(end, unlockTime);
+        assert(!isIndefinite);
+    }
 }

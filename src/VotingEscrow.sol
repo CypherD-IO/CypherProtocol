@@ -427,5 +427,4 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
         return lb;
     }
-
 }
