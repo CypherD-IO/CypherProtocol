@@ -106,6 +106,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
         _checkpoint(tokenId, lockedBalance, LockedBalance(0, 0, false));
 
+        // Cypher token is ERC20-compliant, no need for safeTransfer.
         cypher.transfer(msg.sender, value);
 
         emit Withdraw(tokenOwner, tokenId, value);

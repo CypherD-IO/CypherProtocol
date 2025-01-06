@@ -4,8 +4,11 @@ import "forge-std/Test.sol";
 
 import "../src/CypherToken.sol";
 import "../src/VotingEscrow.sol";
+import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract VotingEscrowTest is Test {
+    using SafeCast for int128;
 
     uint256 private constant VOTE_PERIOD = 2 weeks;
     uint256 private constant INIT_TIMESTAMP = 100_000_000;
@@ -76,5 +79,44 @@ contract VotingEscrowTest is Test {
         assertEq(amount, 5e18);
         assertEq(end, unlockTime);
         assert(!isIndefinite);
+    }
+
+    function testIncreaseUnlockTimeBasic() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        (, uint256 end,) = ve.locked(1);
+
+        // advance by one vote period
+        ve.increaseUnlockTime(id, end + VOTE_PERIOD);
+
+        (, uint256 newEnd,) = ve.locked(1);
+        assertEq(newEnd, end + VOTE_PERIOD);
+
+        // confirm rounding down to nearest vote period
+        ve.increaseUnlockTime(id, newEnd + 3 * VOTE_PERIOD / 2);
+
+        (, uint256 newerEnd,) = ve.locked(1);
+        assertEq(newerEnd, newEnd + VOTE_PERIOD);
+    }
+
+    function testWithdrawBasic() public {
+        uint256 id = ve.createLock(1e18, 17 * VOTE_PERIOD);
+
+        (int128 amount, uint256 end,) = ve.locked(1);
+
+        vm.warp(end);
+
+        uint256 cypherBalBefore = cypher.balanceOf(address(this));
+        ve.withdraw(id);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, 1));
+        ve.ownerOf(id);
+
+        assertEq(cypher.balanceOf(address(this)), cypherBalBefore + amount.toUint256());
+
+        (int128 amountAfter, uint256 endAfter, bool isIndefiniteAfter) = ve.locked(id);
+        assertEq(amountAfter, 0);
+        assertEq(endAfter, 0);
+        assert(!isIndefiniteAfter);
     }
 }
