@@ -10,6 +10,6 @@ contract CypherToken is ICypherToken, ERC20Permit {
     constructor(address treasury) ERC20("Cypher", "CYPR") ERC20Permit("Cypher") {
        // TODO: mint tokens to appropriate recipients or decide to do this via transfers
        // from the treasury
-       _mint(treasury, 499_500_000);
+       _mint(treasury, 499_500_000 * 1e18);
     }
 }

@@ -30,7 +30,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     uint256 public supply;
     uint256 public epoch;
     uint256 public indefiniteLockBalance;
-    mapping (uint256 tokenId => LockedBalance) internal locked;
+    mapping (uint256 tokenId => LockedBalance) public locked;
     mapping (uint256 timestamp => int128 slopeChange) public slopeChanges;
     mapping (uint256 epoch => Point aggregatePoint) public pointHistory;
     mapping (uint256 tokenId => uint256 tokenEpoch) public tokenPointEpoch;
