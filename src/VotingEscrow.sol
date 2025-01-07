@@ -34,7 +34,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     mapping (uint256 timestamp => int128 slopeChange) public slopeChanges;
     mapping (uint256 epoch => Point aggregatePoint) public pointHistory;
     mapping (uint256 tokenId => uint256 tokenEpoch) public tokenPointEpoch;
-    mapping (uint256 tokenId => mapping (uint256 tokenEpoch => Point tokenPoint)) internal tokenPointHistory;
+    mapping (uint256 tokenId => mapping (uint256 tokenEpoch => Point tokenPoint)) public tokenPointHistory;
 
     // --- Constructor ---
 
@@ -202,7 +202,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
             } else {
                 dSlope = slopeChanges[t_i];
             }
-            lastPoint.bias -= lastPoint.slope * (t_i - timestamp).toInt256().toInt128();
+            lastPoint.bias -= lastPoint.slope * (t_i - lastPoint.ts).toInt256().toInt128();
             if (t_i == timestamp) {
                 break;
             }
@@ -394,7 +394,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
             if (tokenEpoch != 0 && tokenPointHistory[tokenId][tokenEpoch].ts == block.timestamp) {
                 tokenPointHistory[tokenId][tokenEpoch] = uNew;
             } else {
-                tokenPointEpoch[tokenId] = tokenEpoch + 1;
+                tokenPointEpoch[tokenId] = ++tokenEpoch;
                 tokenPointHistory[tokenId][tokenEpoch] = uNew;
             }
         }
