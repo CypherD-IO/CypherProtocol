@@ -12,6 +12,7 @@ contract VotingEscrowTest is Test {
 
     uint256 private constant VOTE_PERIOD = 2 weeks;
     uint256 private constant INIT_TIMESTAMP = 100_000_000;
+    uint256 private constant MAX_LOCK_DURATION = 52 * VOTE_PERIOD;
 
     VotingEscrow ve;
     CypherToken cypher;
@@ -40,7 +41,7 @@ contract VotingEscrowTest is Test {
         (int128 amount, uint256 end, bool isIndefinite) = ve.locked(1);
         assertEq(amount, 1e18);
         assertEq(end, ((block.timestamp + duration) / VOTE_PERIOD) * VOTE_PERIOD);
-        assert(!isIndefinite);
+        assertTrue(!isIndefinite);
     }
 
     function testCreatLockForBasic() public {
@@ -57,7 +58,7 @@ contract VotingEscrowTest is Test {
         (int128 amount, uint256 end, bool isIndefinite) = ve.locked(1);
         assertEq(amount, 1e18);
         assertEq(end, ((block.timestamp + duration) / VOTE_PERIOD) * VOTE_PERIOD);
-        assert(!isIndefinite);
+        assertTrue(!isIndefinite);
     }
 
     function testDepositForBasic() public {
@@ -78,7 +79,7 @@ contract VotingEscrowTest is Test {
         (amount, end, isIndefinite) = ve.locked(1);
         assertEq(amount, 5e18);
         assertEq(end, unlockTime);
-        assert(!isIndefinite);
+        assertTrue(!isIndefinite);
     }
 
     function testIncreaseUnlockTimeBasic() public {
@@ -109,7 +110,7 @@ contract VotingEscrowTest is Test {
         uint256 cypherBalBefore = cypher.balanceOf(address(this));
         ve.withdraw(id);
 
-        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, 1));
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id));
         ve.ownerOf(id);
 
         assertEq(cypher.balanceOf(address(this)), cypherBalBefore + amount.toUint256());
@@ -118,5 +119,89 @@ contract VotingEscrowTest is Test {
         assertEq(amountAfter, 0);
         assertEq(endAfter, 0);
         assert(!isIndefiniteAfter);
+    }
+
+    function testLockIndefiniteBasic() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        ve.lockIndefinite(id);
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(id);
+        assertEq(amount, 1e18);
+        assertEq(end, 0);
+        assertTrue(isIndefinite);
+        assertEq(ve.indefiniteLockBalance(), amount.toUint256());
+    }
+
+    function testUnlockIndefiniteBasic() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        ve.lockIndefinite(id);
+
+        ve.unlockIndefinite(id);
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(id);
+        assertEq(amount, 1e18);
+        assertEq(end, ((block.timestamp + MAX_LOCK_DURATION) / VOTE_PERIOD) * VOTE_PERIOD);
+        assertTrue(!isIndefinite);
+        assertEq(ve.indefiniteLockBalance(), 0);
+    }
+
+    function testMergeBasic() public {
+        uint256 idFrom = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        uint256 idTo = ve.createLock(3e18, 5 * VOTE_PERIOD);
+
+        ve.merge(idFrom, idTo);
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(idTo);
+        assertEq(amount, 4e18);
+        assertEq(end, ((block.timestamp + 5 * VOTE_PERIOD) / VOTE_PERIOD) * VOTE_PERIOD);
+        assertTrue(!isIndefinite);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.ownerOf(idFrom);
+
+        (amount, end, isIndefinite) = ve.locked(idFrom);
+        assertEq(amount, 0);
+        assertEq(end, 0);
+        assertTrue(!isIndefinite);
+    }
+
+    function testMergeFuzz(
+        uint256 startTimeSeed,
+        uint256 fromValueSeed,
+        uint256 fromDurationSeed,
+        uint256 toValueSeed,
+        uint256 toDurationSeed
+    ) public {
+        vm.warp(block.timestamp + startTimeSeed % MAX_LOCK_DURATION);
+        uint256 idFrom;
+        uint256 idTo;
+
+        {
+            uint256 totalCypherAvailable = cypher.balanceOf(address(this));
+            uint256 value = bound(fromValueSeed, 1, totalCypherAvailable - 1);
+            uint256 duration = bound(fromDurationSeed, VOTE_PERIOD + 1, MAX_LOCK_DURATION);
+            idFrom = ve.createLock(value, duration);
+
+            value = bound(toValueSeed, 1, totalCypherAvailable - value);
+            duration = bound(toDurationSeed, VOTE_PERIOD + 1, MAX_LOCK_DURATION);
+            idTo = ve.createLock(value, duration);
+        }
+
+        (int128 amountFrom, uint256 endFrom,) = ve.locked(idFrom);
+        (int128 amountTo, uint256 endTo,) = ve.locked(idTo);
+
+        ve.merge(idFrom, idTo);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.ownerOf(idFrom);
+
+        (int128 amount, uint256 end,) = ve.locked(idFrom);
+        assertEq(amount, 0);
+        assertEq(end, 0);
+
+        (amount, end,) = ve.locked(idTo);
+        assertEq(amount, amountFrom + amountTo);
+        assertEq(end, endFrom > endTo ? endFrom : endTo);
     }
 }
