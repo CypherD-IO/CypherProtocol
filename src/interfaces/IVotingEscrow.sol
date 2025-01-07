@@ -6,16 +6,31 @@ interface IVotingEscrow is IERC721 {
 
     // --- Data Types ---
 
+    /// @dev Locked position info.
     struct LockedBalance {
+        /// @dev Quantity of tokens locked.
         int128 amount;
+
+        /// @dev Time at which the lock expires and tokens can be withdrawn.
+        /// @dev Zero is `isIndefinite` is `true`.
         uint256 end;
+
+        /// @dev Whether the lock is indefinite.
         bool isIndefinite;
     }    
 
+    /// @dev Used to record both token and aggregate checkpoints.
     struct Point {
+        /// @dev Effective weight at time of checkpoint.
         int128 bias;
-        int128 slope; // # -dweight / dt
+
+        /// @dev Quantity by which voting weight decreases per-second.
+        int128 slope;  // # -dweight / dt
+
+        /// @dev Timestamp of this checkpoint.
         uint256 ts;
+
+        /// @dev Amount of indefinitely locked tokens.
         uint256 indefinite;
     }
 
