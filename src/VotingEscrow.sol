@@ -16,6 +16,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
     // --- Constants ---
 
+    // All unlock times are rounded down to the nearest mulitple of VOTE_PERIOD.
     uint256 internal constant VOTE_PERIOD = 2 weeks;
     uint256 internal constant MAX_LOCK_DURATION = 2 * 52 weeks; // approx 2 years; chosen to be a multiple of  VOTE_PERIOD
     int128 internal constant iMAX_LOCK_DURATION = 2 * 52 weeks; // approx 2 years; chosen to be a multiple of  VOTE_PERIOD
@@ -78,6 +79,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         if (lockedBalance.end <= block.timestamp) revert LockExpired();
 
         unchecked {
+            // All unlock times are rounded down to the nearest mulitple of VOTE_PERIOD.
             unlockTime = (unlockTime / VOTE_PERIOD) * VOTE_PERIOD;
         }
 
@@ -140,6 +142,8 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
         LockedBalance memory newLockedBalance;
         newLockedBalance.amount = amount;
+
+        // All unlock times are rounded down to the nearest multiple of VOTE_PERIOD.
         newLockedBalance.end = ((block.timestamp + MAX_LOCK_DURATION) / VOTE_PERIOD) * VOTE_PERIOD;
         newLockedBalance.isIndefinite = false;  // default value, but want to be explicit
         locked[tokenId] = newLockedBalance;
