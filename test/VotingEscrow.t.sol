@@ -187,7 +187,6 @@ contract VotingEscrowTest is Test {
             duration = bound(toDurationSeed, VOTE_PERIOD + 1, MAX_LOCK_DURATION);
             idTo = ve.createLock(value, duration);
         }
-
         (int128 amountFrom, uint256 endFrom,) = ve.locked(idFrom);
         (int128 amountTo, uint256 endTo,) = ve.locked(idTo);
 
@@ -205,118 +204,129 @@ contract VotingEscrowTest is Test {
         assertEq(end, endFrom > endTo ? endFrom : endTo);
     }
 
-    function testVoteWeightDecayBasicAligned() public {
+    function testVoteWeightDecayOnePositionAligned() public {
         uint256 initTimestamp = INIT_TIMESTAMP - (INIT_TIMESTAMP % VOTE_PERIOD);
         vm.warp(initTimestamp);
 
         uint256 id = ve.createLock(10e18, MAX_LOCK_DURATION);
+        uint256[] memory times = new uint256[](4);
+        times[0] = initTimestamp;
+        times[1] = initTimestamp + MAX_LOCK_DURATION / 2;
+        times[2] = initTimestamp + MAX_LOCK_DURATION;
+        times[3] = initTimestamp + 3 * MAX_LOCK_DURATION;
 
-        assertEq(ve.balanceOfAt(id, initTimestamp - 1), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp - 1), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp), 9999999999966412800);
-        assertEq(ve.totalSupplyAt(initTimestamp), 9999999999966412800);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp + 3 * MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + 3 * MAX_LOCK_DURATION), 0);
-
-        vm.warp(block.timestamp + MAX_LOCK_DURATION / 2);
-
-        assertEq(ve.balanceOfAt(id, initTimestamp - 1), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp - 1), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp), 9999999999966412800);
-        assertEq(ve.totalSupplyAt(initTimestamp), 9999999999966412800);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp + 3 * MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + 3 * MAX_LOCK_DURATION), 0);
-
-        vm.warp(block.timestamp + MAX_LOCK_DURATION);
-
-        assertEq(ve.balanceOfAt(id, initTimestamp - 1), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp - 1), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp), 9999999999966412800);
-        assertEq(ve.totalSupplyAt(initTimestamp), 9999999999966412800);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp + 3 * MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + 3 * MAX_LOCK_DURATION), 0);
-
-        vm.warp(block.timestamp + 3 * MAX_LOCK_DURATION);
-
-        assertEq(ve.balanceOfAt(id, initTimestamp - 1), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp - 1), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp), 9999999999966412800);
-        assertEq(ve.totalSupplyAt(initTimestamp), 9999999999966412800);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp + 3 * MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + 3 * MAX_LOCK_DURATION), 0);
+        for (uint256 i = 0; i < times.length; i++) {
+            vm.warp(times[i]);
+            assertEq(ve.balanceOfAt(id, initTimestamp - 1), 0);
+            assertEq(ve.totalSupplyAt(initTimestamp - 1), 0);
+            assertEq(ve.balanceOfAt(id, initTimestamp), 9999999999966412800);
+            assertEq(ve.totalSupplyAt(initTimestamp), 9999999999966412800);
+            assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
+            assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 4999999999983206400);
+            assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
+            assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
+            assertEq(ve.balanceOfAt(id, initTimestamp + 3 * MAX_LOCK_DURATION), 0);
+            assertEq(ve.totalSupplyAt(initTimestamp + 3 * MAX_LOCK_DURATION), 0);
+        }
     }
 
-    function testVoteWeightDecayBasicUnaligned() public {
+    function testVoteWeightDecayOnePositionUnaligned() public {
         uint256 initTimestamp = INIT_TIMESTAMP;
-        assert(INIT_TIMESTAMP % VOTE_PERIOD > 0);
-        vm.warp(initTimestamp);
+        assert(initTimestamp % VOTE_PERIOD > 0);
+        assert(block.timestamp == INIT_TIMESTAMP);
 
         uint256 id = ve.createLock(35e18, MAX_LOCK_DURATION);
+        uint256[] memory times = new uint256[](4);
+        times[0] = initTimestamp;
+        times[1] = MAX_LOCK_DURATION / 2;
+        times[2] = 62086400;
+        times[3] = initTimestamp + MAX_LOCK_DURATION;
 
-        assertEq(ve.balanceOfAt(id, initTimestamp - 1_000), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp - 1_000), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp), 34547720797666848000);
-        assertEq(ve.totalSupplyAt(initTimestamp), 34547720797666848000);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
-        assertEq(ve.balanceOfAt(id, initTimestamp + 62086400), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + 62086400), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
+        for (uint256 i = 0; i < times.length; i++) {
+            vm.warp(times[i]);
+            assertEq(ve.balanceOfAt(id, initTimestamp - 1_000), 0);
+            assertEq(ve.totalSupplyAt(initTimestamp - 1_000), 0);
+            assertEq(ve.balanceOfAt(id, initTimestamp), 34547720797666848000);
+            assertEq(ve.totalSupplyAt(initTimestamp), 34547720797666848000);
+            assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
+            assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
+            assertEq(ve.balanceOfAt(id, initTimestamp + 62086400), 0);
+            assertEq(ve.totalSupplyAt(initTimestamp + 62086400), 0);
+            assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
+            assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
+        }
+    }
 
-        vm.warp(block.timestamp + MAX_LOCK_DURATION / 2);
+    function testVoteWeightDecayPartialPeriod(uint256 betweenSeed) public {
+        uint256 initTimestamp = INIT_TIMESTAMP;
+        assert(block.timestamp == INIT_TIMESTAMP);
 
-        assertEq(ve.balanceOfAt(id, initTimestamp - 1_000), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp - 1_000), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp), 34547720797666848000);
-        assertEq(ve.totalSupplyAt(initTimestamp), 34547720797666848000);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
-        assertEq(ve.balanceOfAt(id, initTimestamp + 62086400), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + 62086400), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
+        uint256 id = ve.createLock(36e18, MAX_LOCK_DURATION / 9);
+        (, uint256 end,) = ve.locked(id);
+        uint256 between = initTimestamp + 1 + (betweenSeed % (end - initTimestamp - 2));
+        uint256 balBetween = 3688644688642611200 - (36e18 / MAX_LOCK_DURATION) * (between - initTimestamp);
+        uint256[] memory times = new uint256[](4);
+        times[0] = initTimestamp;
+        times[1] = between;
+        times[2] = end;
+        times[3] = end + 1;
 
-        vm.warp(block.timestamp + 62086400);
+        for (uint256 i = 0; i < times.length; i++) {
+            vm.warp(times[i]);
+            assertEq(ve.balanceOfAt(id, initTimestamp), 3688644688642611200);
+            assertEq(ve.totalSupplyAt(initTimestamp), 3688644688642611200);
+            assertEq(ve.balanceOfAt(id, between), balBetween);
+            assertEq(ve.totalSupplyAt(between), balBetween);
+            assertEq(ve.balanceOfAt(id, end), 0);
+            assertEq(ve.totalSupplyAt(end), 0);
+            assertEq(ve.balanceOfAt(id, end + 1), 0);
+            assertEq(ve.totalSupplyAt(end + 1), 0);
+        }
+    }
 
-        assertEq(ve.balanceOfAt(id, initTimestamp - 1_000), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp - 1_000), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp), 34547720797666848000);
-        assertEq(ve.totalSupplyAt(initTimestamp), 34547720797666848000);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
-        assertEq(ve.balanceOfAt(id, initTimestamp + 62086400), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + 62086400), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
+    function testVoteWeightDecayMultiplePositions() public {
+        uint256 initTimestamp = INIT_TIMESTAMP;
+        assert(block.timestamp == INIT_TIMESTAMP);
 
-        vm.warp(block.timestamp + MAX_LOCK_DURATION);
+        uint256 id1 = ve.createLock(121e18, MAX_LOCK_DURATION);
+        (, uint256 end1,) = ve.locked(id1);
+        uint256 slope1 = 121e18 / MAX_LOCK_DURATION;
+        uint256 bias1 = slope1 * (end1 - block.timestamp);
 
-        assertEq(ve.balanceOfAt(id, initTimestamp - 1_000), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp - 1_000), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp), 34547720797666848000);
-        assertEq(ve.totalSupplyAt(initTimestamp), 34547720797666848000);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION / 2), 17047720797694176000);
-        assertEq(ve.balanceOfAt(id, initTimestamp + 62086400), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + 62086400), 0);
-        assertEq(ve.balanceOfAt(id, initTimestamp + MAX_LOCK_DURATION), 0);
-        assertEq(ve.totalSupplyAt(initTimestamp + MAX_LOCK_DURATION), 0);
+        uint256 secondLockStartTime = initTimestamp + VOTE_PERIOD;
+        vm.warp(secondLockStartTime);
+
+        uint256 id2 = ve.createLock(77e18, MAX_LOCK_DURATION * 2 / 3);
+        (, uint256 end2,) = ve.locked(id2);
+        uint256 slope2 = 77e18 / MAX_LOCK_DURATION;
+        uint256 bias2 = slope2 * (end2 - block.timestamp);
+
+        uint256 ts = initTimestamp;
+        assertEq(ve.totalSupplyAt(ts), ve.balanceOfAt(id1, ts));
+        assertEq(ve.balanceOfAt(id1, ts), bias1);
+        assertEq(ve.balanceOfAt(id2, ts), 0);
+
+        ts = secondLockStartTime;
+        assertEq(ve.totalSupplyAt(ts), ve.balanceOfAt(id1, ts) + ve.balanceOfAt(id2, ts));
+        assertEq(ve.balanceOfAt(id1, ts), bias1 - slope1 * (ts - initTimestamp));
+        assertEq(ve.balanceOfAt(id2, ts), bias2);
+
+        uint256 bothActiveTime = secondLockStartTime + MAX_LOCK_DURATION / 3;
+        assert(bothActiveTime < end1 && bothActiveTime < end2);
+        ts = bothActiveTime;
+        assertEq(ve.totalSupplyAt(ts), ve.balanceOfAt(id1, ts) + ve.balanceOfAt(id2, ts));
+        assertEq(ve.balanceOfAt(id1, ts), bias1 - slope1 * (ts - initTimestamp));
+        assertEq(ve.balanceOfAt(id2, ts), bias2 - slope2 * (ts - secondLockStartTime));
+
+        assert(end2 < end1);
+        ts = end2;
+        assertEq(ve.totalSupplyAt(ts), ve.balanceOfAt(id1, ts));
+        assertEq(ve.balanceOfAt(id1, ts), bias1 - slope1 * (ts - initTimestamp));
+        assertEq(ve.balanceOfAt(id2, ts), 0);
+
+        ts = end1;
+        assertEq(ve.totalSupplyAt(ts), 0);
+        assertEq(ve.balanceOfAt(id1, ts), 0);
+        assertEq(ve.balanceOfAt(id2, ts), 0);
     }
 }
