@@ -121,7 +121,7 @@ contract VotingEscrowTest is Test {
         assert(!isIndefiniteAfter);
     }
 
-    function testLockIndefiniteBasic() public {
+    function testLockIndefiniteBasic(uint256 tsSeed) public {
         uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
 
         ve.lockIndefinite(id);
@@ -131,6 +131,9 @@ contract VotingEscrowTest is Test {
         assertEq(end, 0);
         assertTrue(isIndefinite);
         assertEq(ve.indefiniteLockBalance(), amount.toUint256());
+
+        uint256 ts = tsSeed > block.timestamp ? tsSeed : block.timestamp + tsSeed;
+        assertEq(ve.balanceOfAt(id, ts), 1e18);
     }
 
     function testUnlockIndefiniteBasic() public {
@@ -156,6 +159,27 @@ contract VotingEscrowTest is Test {
         assertEq(amount, 4e18);
         assertEq(end, ((block.timestamp + 5 * VOTE_PERIOD) / VOTE_PERIOD) * VOTE_PERIOD);
         assertTrue(!isIndefinite);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.ownerOf(idFrom);
+
+        (amount, end, isIndefinite) = ve.locked(idFrom);
+        assertEq(amount, 0);
+        assertEq(end, 0);
+        assertTrue(!isIndefinite);
+    }
+
+    function testMergeToIndefinite() public {
+        uint256 idFrom = ve.createLock(9e18, 6 * VOTE_PERIOD);
+        uint256 idTo = ve.createLock(0.1e18, MAX_LOCK_DURATION);
+        ve.lockIndefinite(idTo);
+
+        ve.merge(idFrom, idTo);
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(idTo);
+        assertEq(amount, 9.1e18);
+        assertEq(end, 0);
+        assertTrue(isIndefinite);
 
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
         ve.ownerOf(idFrom);
