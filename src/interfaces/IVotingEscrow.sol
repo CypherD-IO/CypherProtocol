@@ -3,33 +3,27 @@ pragma solidity =0.8.28;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 interface IVotingEscrow is IERC721 {
-
     // --- Data Types ---
 
     /// @dev Locked position info.
     struct LockedBalance {
         /// @dev Quantity of tokens locked.
         int128 amount;
-
         /// @dev Time at which the lock expires and tokens can be withdrawn.
         /// @dev Zero is `isIndefinite` is `true`.
         uint256 end;
-
         /// @dev Whether the lock is indefinite.
         bool isIndefinite;
-    }    
+    }
 
     /// @dev Used to record both token and aggregate checkpoints.
     struct Point {
         /// @dev Effective weight at time of checkpoint.
         int128 bias;
-
         /// @dev Quantity by which voting weight decreases per-second.
-        int128 slope;  // # -dweight / dt
-
+        int128 slope; // # -dweight / dt
         /// @dev Timestamp of this checkpoint.
         uint256 ts;
-
         /// @dev Amount of indefinitely locked tokens.
         uint256 indefinite;
     }
@@ -37,44 +31,18 @@ interface IVotingEscrow is IERC721 {
     // --- Events ---
 
     event CreateLock(
-        address indexed from,
-        address indexed to,
-        uint256 indexed tokenId,
-        uint256 value,
-        uint256 unlockTime
+        address indexed from, address indexed to, uint256 indexed tokenId, uint256 value, uint256 unlockTime
     );
 
-    event DepositFor(
-        address indexed from,
-        address indexed tokenOwner,
-        uint256 indexed tokenId,
-        uint256 valueAdded
-    );
+    event DepositFor(address indexed from, address indexed tokenOwner, uint256 indexed tokenId, uint256 valueAdded);
 
-    event IncreaseUnlockTime(
-        address indexed tokenOwner,
-        uint256 indexed tokenId,
-        uint256 newUnlockTime
-    );
+    event IncreaseUnlockTime(address indexed tokenOwner, uint256 indexed tokenId, uint256 newUnlockTime);
 
-    event Withdraw(
-        address indexed tokenOwner,
-        uint256 indexed tokenId,
-        uint256 value
-    );
+    event Withdraw(address indexed tokenOwner, uint256 indexed tokenId, uint256 value);
 
-    event LockIndefinite(
-        address indexed tokenOwner,
-        uint256 indexed tokenId,
-        uint256 value
-    );
+    event LockIndefinite(address indexed tokenOwner, uint256 indexed tokenId, uint256 value);
 
-    event UnlockIndefinite(
-        address indexed tokenOwner,
-        uint256 indexed tokenId,
-        uint256 value,
-        uint256 unlockTime
-    );
+    event UnlockIndefinite(address indexed tokenOwner, uint256 indexed tokenId, uint256 value, uint256 unlockTime);
 
     event Merge(
         address indexed sender,

@@ -31,16 +31,16 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     uint256 public supply;
     uint256 public epoch;
     uint256 public indefiniteLockBalance;
-    mapping (uint256 tokenId => LockedBalance) public locked;
-    mapping (uint256 timestamp => int128 slopeChange) public slopeChanges;
-    mapping (uint256 epoch => Point aggregatePoint) public pointHistory;
-    mapping (uint256 tokenId => uint256 tokenEpoch) public tokenPointEpoch;
-    mapping (uint256 tokenId => mapping (uint256 tokenEpoch => Point tokenPoint)) public tokenPointHistory;
+    mapping(uint256 tokenId => LockedBalance) public locked;
+    mapping(uint256 timestamp => int128 slopeChange) public slopeChanges;
+    mapping(uint256 epoch => Point aggregatePoint) public pointHistory;
+    mapping(uint256 tokenId => uint256 tokenEpoch) public tokenPointEpoch;
+    mapping(uint256 tokenId => mapping(uint256 tokenEpoch => Point tokenPoint)) public tokenPointHistory;
 
     // --- Constructor ---
 
     constructor(address _cypher) ERC721("Cypher veNFT", "veCYPR") {
-        nextId = 1;  // 0 is not a valid id
+        nextId = 1; // 0 is not a valid id
         cypher = ICypherToken(_cypher);
     }
 
@@ -145,7 +145,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
         // All unlock times are rounded down to the nearest multiple of VOTE_PERIOD.
         newLockedBalance.end = ((block.timestamp + MAX_LOCK_DURATION) / VOTE_PERIOD) * VOTE_PERIOD;
-        newLockedBalance.isIndefinite = false;  // default value, but want to be explicit
+        newLockedBalance.isIndefinite = false; // default value, but want to be explicit
         locked[tokenId] = newLockedBalance;
         _checkpoint(tokenId, lockedBalance, newLockedBalance);
 
@@ -181,13 +181,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         locked[to] = newLockedTo;
         _checkpoint(to, lockedTo, newLockedTo);
 
-        emit Merge(
-            msg.sender,
-            from,
-            to,
-            lockedFrom.amount.toUint256(),
-            lockedTo.amount.toUint256(),
-            newLockedTo.end);
+        emit Merge(msg.sender, from, to, lockedFrom.amount.toUint256(), lockedTo.amount.toUint256(), newLockedTo.end);
     }
 
     // --- Views ---
@@ -257,7 +251,9 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         emit CreateLock(msg.sender, to, tokenId, value, unlockTime);
     }
 
-    function _depositFor(uint256 tokenId, uint256 value, uint256 unlockTime, LockedBalance memory lockedBalance) internal {
+    function _depositFor(uint256 tokenId, uint256 value, uint256 unlockTime, LockedBalance memory lockedBalance)
+        internal
+    {
         supply += value;
         LockedBalance memory newLockedBalance;
         newLockedBalance.amount = lockedBalance.amount + value.toInt256().toInt128();
@@ -404,11 +400,11 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         }
     }
 
-    function epochAtOrPriorTo(
-        uint256 timestamp,
-        uint256 lastEpoch,
-        mapping (uint256 => Point) storage points
-    ) internal view returns (uint256) {
+    function epochAtOrPriorTo(uint256 timestamp, uint256 lastEpoch, mapping(uint256 => Point) storage points)
+        internal
+        view
+        returns (uint256)
+    {
         if (lastEpoch == 0 || points[1].ts > timestamp) return 0;
         if (points[lastEpoch].ts <= timestamp) return lastEpoch;
 
@@ -419,7 +415,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         uint256 mid;
         uint256 ts;
         while (ub > lb) {
-            mid = 1 + (ub + lb - 1) / 2;  // divup
+            mid = 1 + (ub + lb - 1) / 2; // divup
             ts = points[mid].ts;
             if (ts == timestamp) {
                 return mid;
