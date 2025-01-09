@@ -42,6 +42,9 @@ contract CypherTokenTest is Test {
         vm.warp(block.timestamp + 41);
 
         token.transfer(other, token.balanceOf(address(this)));
+        assertEq(token.getVotes(delegate), 0);
+        assertEq(token.getVotes(address(this)), 0);
+        assertEq(token.getVotes(other), 0);
         assertEq(token.numCheckpoints(address(this)), 2);
         assertEq(token.numCheckpoints(delegate), 2);
 
