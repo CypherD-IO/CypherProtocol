@@ -1,0 +1,65 @@
+pragma solidity 0.8.28;
+
+import "./interfaces/ICypherToken.sol";
+import "./interfaces/IRewardDistributor.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+
+contract RewardDistributor is IRewardDistributor, Ownable {
+    ICypherToken public immutable cypher;
+
+    uint256 private nextRootId;
+    mapping(uint256 id => bytes32 root) public override idToRoot;
+    mapping(address claimant => mapping(uint256 rootId => bool hasClaimed)) public override claimed;
+
+    constructor(address initialOwner, address _cypher) Ownable(initialOwner) {
+        cypher = ICypherToken(_cypher);
+    }
+
+    // --- Mutations ---
+
+    /// @inheritdoc IRewardDistributor
+    /// @dev Note that this allows roots to be added multiple times. This is to allow for the exact same set
+    ///      of claimants and claim amount to recur.
+    function addRoot(bytes32 root) external onlyOwner returns (uint256 id) {
+        id = nextRootId++;
+        idToRoot[id] = root;
+        emit RootAdded(id, root);
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function claim(bytes32[] calldata proof, uint256 rootId, uint256 value) external {
+        _claim(proof, rootId, value);
+    }
+
+    /// @inheritdoc IRewardDistributor
+    function claimMultiple(bytes32[][] calldata proofs, uint256[] calldata rootIds, uint256[] calldata values)
+        external
+    {
+        uint256 len = proofs.length;
+        if (rootIds.length != len) revert LengthMismatch();
+        if (values.length != len) revert LengthMismatch();
+        for (uint256 i = 0; i < len; i++) {
+            _claim(proofs[i], rootIds[i], values[i]);
+        }
+    }
+
+    // --- Internals ---
+
+    function _claim(bytes32[] calldata proof, uint256 rootId, uint256 value) internal {
+        bytes32 root = idToRoot[rootId];
+
+        if (root == bytes32(0)) revert InvalidRootId(rootId);
+        if (claimed[msg.sender][rootId]) revert AlreadyClaimed(rootId);
+        if (!MerkleProof.verifyCalldata(proof, root, _toLeaf(msg.sender, value))) revert InvalidProof(rootId);
+
+        claimed[msg.sender][rootId] = true;
+
+        cypher.transfer(msg.sender, value);
+        emit Claimed(msg.sender, value, rootId, root);
+    }
+
+    function _toLeaf(address claimant, uint256 value) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(claimant, value));
+    }
+}
