@@ -23,9 +23,13 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     mapping(uint256 tokenId => uint256 timestamp) public lastVoteTime;
     mapping(uint256 tokenId => bytes32[] candidatesVotedFor) public candidatesVotedFor;
     mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votes)) public votesForCandidateInPeriod;
-    mapping(uint256 tokenId => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votesInPeriod))) public votesByTokenForCandidateInPeriod;
-    mapping(address bribeToken => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 amount))) public amountOfBribeTokenForCandidateInPeriod;
-    mapping(uint256 tokenId => mapping(address bribeToken => mapping(bytes32 candidate => uint256 lastClaimedPeriodStart))) public lastClaimByTokenOfBribeTokenForCandidate;
+    mapping(uint256 tokenId => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votesInPeriod)))
+        public votesByTokenForCandidateInPeriod;
+    mapping(address bribeToken => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 amount))) public
+        amountOfBribeTokenForCandidateInPeriod;
+    mapping(
+        uint256 tokenId => mapping(address bribeToken => mapping(bytes32 candidate => uint256 lastClaimedPeriodStart))
+    ) public lastClaimByTokenOfBribeTokenForCandidate;
 
     // --- Constructor ---
 
@@ -109,11 +113,17 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IElection
-    function claimBribes(uint256 tokenId, address[] calldata bribeTokens, bytes32[] calldata candidates, uint256 from, uint256 until) external nonReentrant {
+    function claimBribes(
+        uint256 tokenId,
+        address[] calldata bribeTokens,
+        bytes32[] calldata candidates,
+        uint256 from,
+        uint256 until
+    ) external nonReentrant {
         if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedForVoting();
 
         uint256 firstPeriod = _votingPeriodStart(from);
-        uint256 lastPeriod  = _votingPeriodStart(until);
+        uint256 lastPeriod = _votingPeriodStart(until);
 
         if (lastPeriod >= _votingPeriodStart(block.timestamp)) revert CanOnlyClaimBribesForPastPeriods();
 

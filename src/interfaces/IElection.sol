@@ -8,7 +8,13 @@ interface IElection {
     event BribeTokenEnabled(address indexed bribeToken);
     event BribeTokenDisabled(address indexed bribeToken);
     event Vote(uint256 indexed tokenId, bytes32 indexed candidate, uint256 indexed periodStart, uint256 votes);
-    event BribeClaimed(uint256 indexed tokenId, address indexed bribeToken, bytes32 indexed candidate, uint256 periodStart, uint256 amount);
+    event BribeClaimed(
+        uint256 indexed tokenId,
+        address indexed bribeToken,
+        bytes32 indexed candidate,
+        uint256 periodStart,
+        uint256 amount
+    );
     event BribeAdded(address indexed bribeToken, bytes32 indexed candidate, uint256 periodStart, uint256 amount);
 
     // --- Errors ---
@@ -55,11 +61,16 @@ interface IElection {
     /// @param candidates Candidates to claim for voting for.
     /// @param from Timestamp contained in the first period to claim from.
     /// @param until Timestamp contained in the last period to claim from.
-    function claimBribes(uint256 tokenId, address[] calldata bribeTokens, bytes32[] calldata candidates, uint256 from, uint256 until) external;
+    function claimBribes(
+        uint256 tokenId,
+        address[] calldata bribeTokens,
+        bytes32[] calldata candidates,
+        uint256 from,
+        uint256 until
+    ) external;
 
     /// @notice Add a bribe for a given candidate in the current voting period.
     function addBribe(address bribeToken, uint256 amount, bytes32 candidate) external;
 
     // --- Views ---
-
 }

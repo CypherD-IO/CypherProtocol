@@ -187,7 +187,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     // --- Views ---
 
     /// @inheritdoc IVotingEscrow
-    function isAuthorizedToVoteFor(address actor, uint256 tokenId) external override view returns (bool) {
+    function isAuthorizedToVoteFor(address actor, uint256 tokenId) external view override returns (bool) {
         return _isAuthorized(_ownerOf(tokenId), actor, tokenId);
     }
 
