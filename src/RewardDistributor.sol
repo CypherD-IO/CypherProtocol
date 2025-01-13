@@ -10,7 +10,7 @@ contract RewardDistributor is IRewardDistributor, Ownable {
 
     uint256 private nextRootId;
     mapping(uint256 id => bytes32 root) public override idToRoot;
-    mapping(address claimant => mapping(uint256 rootId => bool hasClaimed)) public override claimed;
+    mapping(uint256 rootId => mapping(address claimant => bool hasClaimed)) public override claimed;
 
     constructor(address initialOwner, address _cypher) Ownable(initialOwner) {
         cypher = ICypherToken(_cypher);
@@ -50,10 +50,10 @@ contract RewardDistributor is IRewardDistributor, Ownable {
         bytes32 root = idToRoot[rootId];
 
         if (root == bytes32(0)) revert InvalidRootId(rootId);
-        if (claimed[msg.sender][rootId]) revert AlreadyClaimed(rootId);
+        if (claimed[rootId][msg.sender]) revert AlreadyClaimed(rootId);
         if (!MerkleProof.verifyCalldata(proof, root, _toLeaf(msg.sender, value))) revert InvalidProof(rootId);
 
-        claimed[msg.sender][rootId] = true;
+        claimed[rootId][msg.sender] = true;
 
         cypher.transfer(msg.sender, value);
         emit Claimed(msg.sender, value, rootId, root);

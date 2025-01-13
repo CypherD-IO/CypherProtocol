@@ -41,8 +41,8 @@ interface IRewardDistributor {
     function idToRoot(uint256 id) external view returns (bytes32 root);
 
     /// @notice Determine whether `claimant` has already claimed rewards from root identified by `rootId`.
-    /// @param claimant The address to checked the claiming status for.
     /// @param rootId The id of the root to check claiming status for.
+    /// @param claimant The address to checked the claiming status for.
     /// @return hasClaimed Whether or not the claimant claimed rewards from the given rootId.
-    function claimed(address claimant, uint256 rootId) external view returns (bool hasClaimed);
+    function claimed(uint256 rootId, address claimant) external view returns (bool hasClaimed);
 }
