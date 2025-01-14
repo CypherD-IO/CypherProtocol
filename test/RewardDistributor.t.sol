@@ -7,7 +7,6 @@ import {RewardDistributor} from "../src/RewardDistributor.sol";
 import {IRewardDistributor} from "../src/interfaces/IRewardDistributor.sol";
 
 contract RewardDistributorTest is Test {
-
     CypherToken cypher;
     RewardDistributor rd;
 
@@ -23,18 +22,18 @@ contract RewardDistributorTest is Test {
     }
 
     function testAddRoot() public {
-        bytes32 root1 = keccak256(bytes.concat('abc'));
+        bytes32 root1 = keccak256(bytes.concat("abc"));
         uint256 id = rd.addRoot(root1);
         assertEq(id, 0);
         assertEq(rd.idToRoot(id), root1);
-        bytes32 root2 = keccak256(bytes.concat('123'));
+        bytes32 root2 = keccak256(bytes.concat("123"));
         id = rd.addRoot(root2);
         assertEq(id, 1);
         assertEq(rd.idToRoot(id), root2);
     }
 
     function testAddSameRootTwice() public {
-        bytes32 root = keccak256(bytes.concat('a1A'));
+        bytes32 root = keccak256(bytes.concat("a1A"));
         uint256 id = rd.addRoot(root);
         assertEq(id, 0);
         assertEq(rd.idToRoot(id), root);
