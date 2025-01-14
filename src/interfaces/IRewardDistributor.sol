@@ -8,6 +8,7 @@ interface IRewardDistributor {
 
     // --- Errors ---
 
+    error InvalidRoot();
     error InvalidRootId(uint256);
     error AlreadyClaimed(uint256);
     error InvalidProof(uint256);

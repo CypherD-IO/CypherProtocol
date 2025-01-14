@@ -20,8 +20,9 @@ contract RewardDistributor is IRewardDistributor, Ownable {
 
     /// @inheritdoc IRewardDistributor
     /// @dev Note that this allows roots to be added multiple times. This is to allow for the exact same set
-    ///      of claimants and claim amount to recur.
+    ///      of claimants and claim amounts to recur.
     function addRoot(bytes32 root) external onlyOwner returns (uint256 id) {
+        if (root == bytes32(0)) revert InvalidRoot();
         id = nextRootId++;
         idToRoot[id] = root;
         emit RootAdded(id, root);
