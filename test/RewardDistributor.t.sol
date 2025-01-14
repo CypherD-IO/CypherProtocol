@@ -91,18 +91,22 @@ contract RewardDistributorTest is Test {
         }
     }
 
-    function _computeSimpleTree(address[] memory addrs, uint256[] memory amnts, uint256 proofIdx) internal pure returns (bytes32 root, bytes32[] memory proof) {
+    function _computeSimpleTree(address[] memory addrs, uint256[] memory amnts, uint256 proofIdx)
+        internal
+        pure
+        returns (bytes32 root, bytes32[] memory proof)
+    {
         proof = new bytes32[](2);
 
         bytes32[] memory leafHashes = new bytes32[](4);
-        for(uint256 i = 0; i < 4; i++) {
+        for (uint256 i = 0; i < 4; i++) {
             leafHashes[i] = keccak256(bytes.concat(keccak256(abi.encode(addrs[i], amnts[i]))));
         }
 
         proof[0] = leafHashes[(proofIdx + 1) % 2 + (proofIdx / 2) * 2];
 
-        bytes32 leftHash  = _commutativeKeccak(leafHashes[0], leafHashes[1]);
-        bytes32 rightHash  = _commutativeKeccak(leafHashes[2], leafHashes[3]);
+        bytes32 leftHash = _commutativeKeccak(leafHashes[0], leafHashes[1]);
+        bytes32 rightHash = _commutativeKeccak(leafHashes[2], leafHashes[3]);
 
         proof[1] = proofIdx < 2 ? rightHash : leftHash;
 
