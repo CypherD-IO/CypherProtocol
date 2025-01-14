@@ -60,13 +60,9 @@ contract RewardDistributor is IRewardDistributor, Ownable {
     }
 
     function _hashLeaf(address claimant, uint256 value) internal pure returns (bytes32) {
-        // Double-hashing to prevent second preimage attacks is not strictly necessary here
-        // as the length of a packed encoding of an address and a uint256 is 52 bytes, not 64,
-        // and further it would be very unlikely that an attacker could make an EVM call from
-        // the address corresponding to the appropriate 20 bytes of an intermediate hash concatenation,
-        // or that the corresponding amount of tokens would actually be claimable. However, as a
-        // matter of future-proofing and best practice, it is done anyway to guard against subsequent
-        // code changes introducing the issue.
-        return keccak256(bytes.concat(keccak256(abi.encodePacked(claimant, value))));
+        // Matches the default behavior of OZ's Merkle tree library:
+        // https://github.com/OpenZeppelin/merkle-tree/tree/master)
+        // The double hashing mitigates any possibility of a second preimage attack.
+        return keccak256(bytes.concat(keccak256(abi.encode(claimant, value))));
     }
 }
