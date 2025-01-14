@@ -92,19 +92,6 @@ contract RewardDistributorTest is Test {
     }
 
     function _computeSimpleTree(address[] memory addrs, uint256[] memory amnts, uint256 proofIdx) internal pure returns (bytes32 root, bytes32[] memory proof) {
-        addrs = new address[](4);
-        amnts = new uint256[](4);
-
-        addrs[0] = address(0x1234);
-        addrs[1] = address(0x6789);
-        addrs[2] = address(0x8888);
-        addrs[3] = address(0xF1F0);
-
-        amnts[0] = 5e18;
-        amnts[1] = 2.7e18;
-        amnts[2] = 555e18;
-        amnts[3] = 0.01e18;
-
         proof = new bytes32[](2);
 
         bytes32[] memory leafHashes = new bytes32[](4);
