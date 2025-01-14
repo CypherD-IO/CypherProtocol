@@ -57,21 +57,41 @@ contract RewardDistributorTest is Test {
     }
 
     function testClaimSingle() public {
-        (bytes32 root, address[] memory addrs, uint256[] memory amnts, bytes32[] memory proof) = _constructSimpleTree();
-        uint256 id = rd.addRoot(root);
+        address[] memory addrs = new address[](4);
+        uint256[] memory amnts = new uint256[](4);
 
-        cypher.transfer(address(rd), amnts[1]);
-        uint256 balBefore = cypher.balanceOf(addrs[1]);
+        addrs[0] = address(0x1234);
+        addrs[1] = address(0x6789);
+        addrs[2] = address(0x8888);
+        addrs[3] = address(0xF1F0);
 
-        vm.prank(addrs[1]);
-        rd.claim(proof, id, amnts[1]);
+        amnts[0] = 5e18;
+        amnts[1] = 2.7e18;
+        amnts[2] = 555e18;
+        amnts[3] = 0.01e18;
 
-        uint256 balAfter = cypher.balanceOf(addrs[1]);
-        assertEq(balAfter - balBefore, amnts[1]);
-        assertTrue(rd.claimed(id, addrs[1]));
+        bytes32 root;
+        bytes32[] memory proof;
+        for (uint256 proofIdx = 0; proofIdx < 4; proofIdx++) {
+            (root, proof) = _computeSimpleTree(addrs, amnts, proofIdx);
+            uint256 id = rd.addRoot(root);
+
+            address claimant = addrs[proofIdx];
+            uint256 claimAmt = amnts[proofIdx];
+
+            cypher.transfer(address(rd), claimAmt);
+            uint256 balBefore = cypher.balanceOf(claimant);
+
+            vm.prank(claimant);
+            rd.claim(proof, id, claimAmt);
+
+            uint256 balAfter = cypher.balanceOf(claimant);
+            assertEq(balAfter - balBefore, claimAmt);
+            assertTrue(rd.claimed(id, claimant));
+        }
     }
 
-    function _constructSimpleTree() internal pure returns (bytes32 root, address[] memory addrs, uint256[] memory amnts, bytes32[] memory proof) {
+    function _computeSimpleTree(address[] memory addrs, uint256[] memory amnts, uint256 proofIdx) internal pure returns (bytes32 root, bytes32[] memory proof) {
         addrs = new address[](4);
         amnts = new uint256[](4);
 
@@ -92,13 +112,18 @@ contract RewardDistributorTest is Test {
             leafHashes[i] = keccak256(bytes.concat(keccak256(abi.encode(addrs[i], amnts[i]))));
         }
 
-        proof[0] = leafHashes[0];
+        proof[0] = leafHashes[(proofIdx + 1) % 2 + (proofIdx / 2) * 2];
 
-        bytes32 leftHash  = keccak256(bytes.concat(leafHashes[0], leafHashes[1]));
-        bytes32 rightHash = keccak256(bytes.concat(leafHashes[2], leafHashes[3]));
+        bytes32 leftHash  = _commutativeKeccak(leafHashes[0], leafHashes[1]);
+        bytes32 rightHash  = _commutativeKeccak(leafHashes[2], leafHashes[3]);
 
-        proof[1] = rightHash;
+        proof[1] = proofIdx < 2 ? rightHash : leftHash;
 
         root = keccak256(bytes.concat(leftHash, rightHash));
+        root = _commutativeKeccak(leftHash, rightHash);
+    }
+
+    function _commutativeKeccak(bytes32 a, bytes32 b) internal pure returns (bytes32) {
+        return a < b ? keccak256(bytes.concat(a, b)) : keccak256(bytes.concat(b, a));
     }
 }
