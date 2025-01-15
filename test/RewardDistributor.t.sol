@@ -91,6 +91,64 @@ contract RewardDistributorTest is Test {
         }
     }
 
+    function testClaimInvalidRootId() public {
+        (bytes32 root, bytes32[] memory proof, address addr, uint256 amnt) = _genValidRootAndClaimData();
+        uint256 id = rd.addRoot(root);
+        cypher.transfer(address(rd), amnt);
+
+        // Everything is correct except root id is off-by-one and hasn't been added
+        vm.prank(addr);
+        vm.expectRevert(abi.encodeWithSelector(IRewardDistributor.InvalidRootId.selector, id + 1));
+        rd.claim(proof, id + 1, amnt);
+    }
+
+    function testCannotClaimTwice() public {
+        (bytes32 root, bytes32[] memory proof, address addr, uint256 amnt) = _genValidRootAndClaimData();
+        uint256 id = rd.addRoot(root);
+        cypher.transfer(address(rd), 2 * amnt); // transfer enough to claim twice
+
+        vm.startPrank(addr);
+        rd.claim(proof, id, amnt);
+        vm.expectRevert(abi.encodeWithSelector(IRewardDistributor.AlreadyClaimed.selector, id));
+        rd.claim(proof, id, amnt);
+    }
+
+    function testInvalidProofIsRejected() public {
+        (bytes32 root, bytes32[] memory proof, address addr, uint256 amnt) = _genValidRootAndClaimData();
+        uint256 id = rd.addRoot(root);
+        cypher.transfer(address(rd), amnt);
+
+        // mangle proof
+        proof[1] = bytes32(0);
+
+        vm.startPrank(addr);
+        vm.expectRevert(abi.encodeWithSelector(IRewardDistributor.InvalidProof.selector, id));
+        rd.claim(proof, id, amnt);
+    }
+
+    function _genValidRootAndClaimData()
+        internal
+        pure
+        returns (bytes32 root, bytes32[] memory proof, address addr, uint256 amnt)
+    {
+        address[] memory addrs = new address[](4);
+        uint256[] memory amnts = new uint256[](4);
+
+        addrs[0] = address(0x1234);
+        addrs[1] = address(0x6789);
+        addrs[2] = address(0x8888);
+        addrs[3] = address(0xF1F0);
+
+        amnts[0] = 5e18;
+        amnts[1] = 2.7e18;
+        amnts[2] = 555e18;
+        amnts[3] = 0.01e18;
+
+        (root, proof) = _computeSimpleTree(addrs, amnts, 0);
+        addr = addrs[0];
+        amnt = amnts[0];
+    }
+
     function _computeSimpleTree(address[] memory addrs, uint256[] memory amnts, uint256 proofIdx)
         internal
         pure
