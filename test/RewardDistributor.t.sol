@@ -237,9 +237,11 @@ contract RewardDistributorTest is Test {
         address claimant = address(0x7777777777777777777777777777777777777777);
         uint256 value = 3.05e18;
 
-        string[] memory cmds = new string[](2);
+        string[] memory cmds = new string[](4);
         cmds[0] = "node";
         cmds[1] = "test/Merkle.test.js";
+        cmds[2] = vm.toString(claimant);
+        cmds[3] = vm.toString(value);
         bytes memory result = vm.ffi(cmds);
         (bytes32 root, bytes32[] memory proof) = abi.decode(result, (bytes32, bytes32[]));
 
