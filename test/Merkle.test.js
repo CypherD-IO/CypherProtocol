@@ -1,4 +1,5 @@
 import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
+import { ethers } from "ethers";
 
 const values = [
     ["0x1111111111111111111111111111111111111111", "1000000000000000000"],
@@ -12,5 +13,9 @@ const values = [
 
 const tree = StandardMerkleTree.of(values, ["address", "uint256"]);
 
-console.log("root: ", tree.root);
-console.log("proof: ", tree.getProof(6));
+// ffi expects a hex string abi encoding
+const enc = ethers.AbiCoder.defaultAbiCoder().encode(
+    [ "bytes32", "bytes32[]" ],
+    [ tree.root, tree.getProof(6) ]
+);
+console.log(enc);

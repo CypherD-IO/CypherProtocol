@@ -233,6 +233,26 @@ contract RewardDistributorTest is Test {
         rd.claimMultiple(proofs, rootIds, tooManyValues);
     }
 
+    function testMerkleTreeLibCompatibility() public {
+        address claimant = address(0x7777777777777777777777777777777777777777);
+        uint256 value = 3.05e18;
+
+        string[] memory cmds = new string[](2);
+        cmds[0] = "node";
+        cmds[1] = "test/Merkle.test.js";
+        bytes memory result = vm.ffi(cmds);
+        (bytes32 root, bytes32[] memory proof) = abi.decode(result, (bytes32, bytes32[]));
+
+        uint256 id = rd.addRoot(root);
+        cypher.transfer(address(rd), value);
+
+        vm.prank(claimant);
+        rd.claim(proof, id, value);
+
+        assertEq(cypher.balanceOf(claimant), value);
+        assertTrue(rd.claimed(id, claimant));
+    }
+
     function _genValidRootAndClaimData()
         internal
         pure
