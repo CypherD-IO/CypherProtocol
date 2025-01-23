@@ -1,7 +1,7 @@
 {
   "type": "module",
   "dependencies": {
-    "@openzeppelin/merkle-tree": "^1.0.7",
-    "ethers": "^6.13.5"
+    "@openzeppelin/merkle-tree": "1.0.7",
+    "ethers": "6.13.5"
   }
 }
