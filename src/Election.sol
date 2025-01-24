@@ -13,15 +13,15 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     // --- Constants ---
 
     uint256 private constant VOTE_PERIOD = 2 weeks;
+    uint256 private constant MAX_LOCK_DURATION = 2 * 52 weeks;
 
     // --- Storage ---
 
-    IVotingEscrow private ve;
+    IVotingEscrow public ve;
 
     mapping(bytes32 candidate => bool isCandidate) public isCandidate;
     mapping(address bribeToken => bool isBribeToken) public isBribeToken;
     mapping(uint256 tokenId => uint256 timestamp) public lastVoteTime;
-    mapping(uint256 tokenId => bytes32[] candidatesVotedFor) public candidatesVotedFor;
     mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votes)) public votesForCandidateInPeriod;
     mapping(uint256 tokenId => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votesInPeriod)))
         public votesByTokenForCandidateInPeriod;
@@ -78,12 +78,10 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         uint256 periodStart = _votingPeriodStart(block.timestamp);
         if (lastVoteTime[tokenId] >= periodStart) revert AlreadyVoted();
 
-        uint256 power = ve.balanceOfAt(tokenId, block.timestamp);
+        uint256 power = ve.balanceOfAt(tokenId, periodStart);
         if (power == 0) revert NoVotingPower();
 
-        lastVoteTime[tokenId] = block.timestamp;
-
-        _clearVotingData(tokenId);
+        lastVoteTime[tokenId] = block.timestamp; // Could just store periodStart as well
 
         uint256 len = weights.length;
 
@@ -97,19 +95,11 @@ contract Election is IElection, Ownable, ReentrancyGuard {
             if (!isCandidate[candidate]) revert InvalidCandidate();
             uint256 votesToAdd = power * weights[i] / totalWeight;
             if (votesToAdd > 0) {
-                candidatesVotedFor[tokenId].push(candidate);
                 votesForCandidateInPeriod[candidate][periodStart] += votesToAdd;
                 votesByTokenForCandidateInPeriod[tokenId][candidate][periodStart] += votesToAdd;
-                emit Vote(tokenId, candidate, periodStart, votesToAdd);
+                emit Vote(tokenId, ve.ownerOf(tokenId), candidate, periodStart, votesToAdd);
             }
         }
-    }
-
-    /// @inheritdoc IElection
-    function clear(uint256 tokenId) external nonReentrant {
-        if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedForVoting();
-        if (lastVoteTime[tokenId] >= _votingPeriodStart(block.timestamp)) revert AlreadyVoted();
-        _clearVotingData(tokenId);
     }
 
     /// @inheritdoc IElection
@@ -189,9 +179,5 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     function _votingPeriodEnd(uint256 timestamp) internal pure returns (uint256) {
         return _votingPeriodStart(timestamp) + VOTE_PERIOD;
-    }
-
-    function _clearVotingData(uint256 tokenId) internal {
-        delete candidatesVotedFor[tokenId];
     }
 }

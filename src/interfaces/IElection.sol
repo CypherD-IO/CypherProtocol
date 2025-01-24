@@ -7,7 +7,7 @@ interface IElection {
     event CandidateDisabled(bytes32 indexed candidate);
     event BribeTokenEnabled(address indexed bribeToken);
     event BribeTokenDisabled(address indexed bribeToken);
-    event Vote(uint256 indexed tokenId, bytes32 indexed candidate, uint256 indexed periodStart, uint256 votes);
+    event Vote(uint256 indexed tokenId, address indexed tokenOwner, bytes32 indexed candidate, uint256 periodStart, uint256 votes);
     event BribeClaimed(
         uint256 indexed tokenId,
         address indexed bribeToken,
@@ -51,10 +51,6 @@ interface IElection {
     /// @param weights Per-candidate weight fraction.
     function vote(uint256 tokenId, bytes32[] calldata candidates, uint256[] calldata weights) external;
 
-    /// @notice Clear voting record.
-    /// @param tokenId The token to clear the voting record of.
-    function clear(uint256 tokenId) external;
-
     /// @notice Claim bribes.
     /// @param tokenId Id of the token to claim bribes for.
     /// @param bribeTokens Bribe tokens to claim.
@@ -70,7 +66,15 @@ interface IElection {
     ) external;
 
     /// @notice Add a bribe for a given candidate in the current voting period.
+    /// @param bribeToken Address of the token to add a bribe with
+    /// @param amount Total amount of the bribe
+    /// @param candidate Candidate that voters must vote for to receive a share of the bribe
     function addBribe(address bribeToken, uint256 amount, bytes32 candidate) external;
 
     // --- Views ---
+
+    /// @notice Return the timestamp of the last voting action by a given veNFT.
+    /// @param tokenId Id of the veNFT.
+    /// @return timestamp Timestamp at which the veNFT last voted.
+    function lastVoteTime(uint256 tokenId) external returns (uint256 timestamp);
 }
