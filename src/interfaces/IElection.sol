@@ -7,7 +7,13 @@ interface IElection {
     event CandidateDisabled(bytes32 indexed candidate);
     event BribeTokenEnabled(address indexed bribeToken);
     event BribeTokenDisabled(address indexed bribeToken);
-    event Vote(uint256 indexed tokenId, address indexed tokenOwner, bytes32 indexed candidate, uint256 periodStart, uint256 votes);
+    event Vote(
+        uint256 indexed tokenId,
+        address indexed tokenOwner,
+        bytes32 indexed candidate,
+        uint256 periodStart,
+        uint256 votes
+    );
     event BribeClaimed(
         uint256 indexed tokenId,
         address indexed bribeToken,

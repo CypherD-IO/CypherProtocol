@@ -81,7 +81,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         uint256 power = ve.balanceOfAt(tokenId, periodStart);
         if (power == 0) revert NoVotingPower();
 
-        lastVoteTime[tokenId] = block.timestamp; // Could just store periodStart as well
+        lastVoteTime[tokenId] = block.timestamp;
 
         uint256 len = weights.length;
 

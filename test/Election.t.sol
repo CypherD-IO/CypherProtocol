@@ -10,8 +10,8 @@ import {VotingEscrow} from "../src/VotingEscrow.sol";
 // import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 contract ElectionTest is Test {
-    bytes32 constant CANDIDATE1 = keccak256(hex'f833a28e');
-    bytes32 constant CANDIDATE2 = keccak256(hex'22222222');
+    bytes32 constant CANDIDATE1 = keccak256(hex"f833a28e");
+    bytes32 constant CANDIDATE2 = keccak256(hex"22222222");
     address constant USER1 = address(0x123456789);
     uint256 private constant VOTE_PERIOD = 2 weeks;
     uint256 private constant MAX_LOCK_DURATION = 52 * 2 weeks;
@@ -53,7 +53,9 @@ contract ElectionTest is Test {
 
     function testEnableDisableCandidateAuth() public {
         address notOwner;
-        unchecked { notOwner = address(uint160(address(this)) + 1); }
+        unchecked {
+            notOwner = address(uint160(address(this)) + 1);
+        }
 
         vm.prank(notOwner);
         vm.expectRevert();
@@ -88,7 +90,9 @@ contract ElectionTest is Test {
 
     function testEnableDisableBribeTokenAuth() public {
         address notOwner;
-        unchecked { notOwner = address(uint160(address(this)) + 1); }
+        unchecked {
+            notOwner = address(uint160(address(this)) + 1);
+        }
         address bribeTokenAddr = address(0x12341234);
 
         vm.prank(notOwner);
@@ -141,7 +145,82 @@ contract ElectionTest is Test {
         }
     }
 
+    // Verifies that it's voting power at the start of a period that counts.
+    function testVoteSingleVoterDuringPeriod() public {
+        cypher.approve(address(ve), 4e18);
+        uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
+
+        _warpToNextVotePeriodStart();
+
+        uint256 power = ve.balanceOfAt(id, block.timestamp);
+        assert(power > 0);
+
+        // warp into the middle of the period
+        vm.warp(block.timestamp + 3 * VOTE_PERIOD / 5);
+
+        // check that voting power has diminished (vote power from start of period will be used)
+        assertLt(ve.balanceOfAt(id, block.timestamp), power);
+
+        bytes32[] memory candidates = new bytes32[](2);
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+
+        election.enableCandidate(CANDIDATE1);
+        election.enableCandidate(CANDIDATE2);
+
+        uint256[] memory weights = new uint256[](2);
+
+        // Weights don't have to sum to anything in particular--will be normalized based on total weight provided.
+        weights[0] = 6667;
+        weights[1] = 3333;
+        uint256 totalWeight = weights[0] + weights[1];
+
+        uint256 periodStart = _periodStart(block.timestamp);
+
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(id, address(this), candidates[0], periodStart, power * weights[0] / totalWeight);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(id, address(this), candidates[1], periodStart, power * weights[1] / totalWeight);
+        election.vote(id, candidates, weights);
+
+        assertEq(election.lastVoteTime(id), block.timestamp);
+
+        for (uint256 i = 0; i < 2; i++) {
+            uint256 votes = power * weights[i] / totalWeight;
+            assertEq(election.votesForCandidateInPeriod(candidates[i], periodStart), votes);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, candidates[i], periodStart), votes);
+        }
+    }
+
+    function testVoteAuthorization() public {
+        cypher.approve(address(ve), 4e18);
+        uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
+        _warpToNextVotePeriodStart();
+
+        // Approve USER1 to vote for our account.
+        ve.approve(USER1, id);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+
+        vm.expectEmit(true, true, true, true);
+        // The owner of the id, not the caller of vote(), is emitted.
+        emit IElection.Vote(id, address(this), candidates[0], block.timestamp, ve.balanceOfAt(id, block.timestamp));
+        vm.prank(USER1);
+        election.vote(id, candidates, weights);
+
+        // Just a basic check that the vote was processed correctly.
+        assertEq(election.lastVoteTime(id), block.timestamp);
+    }
+
     function _warpToNextVotePeriodStart() internal {
         vm.warp(block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD);
+    }
+
+    function _periodStart(uint256 t) internal pure returns (uint256) {
+        return t / VOTE_PERIOD * VOTE_PERIOD;
     }
 }
