@@ -12,6 +12,7 @@ import {VotingEscrow} from "../src/VotingEscrow.sol";
 contract ElectionTest is Test {
     bytes32 constant CANDIDATE1 = keccak256(hex"f833a28e");
     bytes32 constant CANDIDATE2 = keccak256(hex"22222222");
+    bytes32 constant CANDIDATE3 = keccak256(hex"333333");
     address constant USER1 = address(0x123456789);
     uint256 private constant VOTE_PERIOD = 2 weeks;
     uint256 private constant MAX_LOCK_DURATION = 52 * 2 weeks;
@@ -214,6 +215,149 @@ contract ElectionTest is Test {
 
         // Just a basic check that the vote was processed correctly.
         assertEq(election.lastVoteTime(id), block.timestamp);
+    }
+
+    function testVoteUnauthorized() public {
+        cypher.approve(address(ve), 4e18);
+        uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
+        _warpToNextVotePeriodStart();
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+
+        vm.prank(USER1);
+        vm.expectRevert(IElection.NotAuthorizedForVoting.selector);
+        election.vote(id, candidates, weights);
+    }
+
+    function testVoteArgLengthMismatch() public {
+        cypher.approve(address(ve), 4e18);
+        uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
+        _warpToNextVotePeriodStart();
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 1e18;
+        weights[1] = 1e18;
+
+        vm.expectRevert(IElection.LengthMismatch.selector);
+        election.vote(id, candidates, weights);
+
+        candidates = new bytes32[](3);
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+        election.enableCandidate(CANDIDATE2);
+        candidates[2] = CANDIDATE3;
+        election.enableCandidate(CANDIDATE3);
+
+        vm.expectRevert(IElection.LengthMismatch.selector);
+        election.vote(id, candidates, weights);
+    }
+
+    function testVoteAlreadyVoted() public {
+        cypher.approve(address(ve), 4e18);
+        uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
+        _warpToNextVotePeriodStart();
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+
+        election.vote(id, candidates, weights);
+
+        vm.expectRevert(IElection.AlreadyVoted.selector);
+        election.vote(id, candidates, weights);
+
+        vm.warp(block.timestamp + VOTE_PERIOD / 2);
+
+        vm.expectRevert(IElection.AlreadyVoted.selector);
+        election.vote(id, candidates, weights);
+
+        _warpToNextVotePeriodStart();
+        vm.warp(block.timestamp - 1);
+
+        vm.expectRevert(IElection.AlreadyVoted.selector);
+        election.vote(id, candidates, weights);
+
+        _warpToNextVotePeriodStart();
+
+        // New period, should be able to vote again.
+        election.vote(id, candidates, weights);
+    }
+
+    function testVoteNoVotingPower() public {
+        _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), 4e18);
+        uint256 id = ve.createLock(4e18, VOTE_PERIOD * 3);
+
+        vm.warp(block.timestamp + 4 * VOTE_PERIOD);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+
+        vm.expectRevert(IElection.NoVotingPower.selector);
+        election.vote(id, candidates, weights);
+    }
+
+    function testVoteZeroWeight() public {
+        _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), 333e18);
+        uint256 id = ve.createLock(333e18, MAX_LOCK_DURATION);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 0;
+
+        vm.expectRevert();
+        election.vote(id, candidates, weights);
+    }
+
+    function testVoteWeightOverflow() public {
+        _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), 333e18);
+        uint256 id = ve.createLock(333e18, MAX_LOCK_DURATION);
+
+        bytes32[] memory candidates = new bytes32[](2);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        candidates[1] = CANDIDATE2;
+        election.enableCandidate(CANDIDATE2);
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = type(uint256).max;
+        weights[1] = type(uint256).max;
+
+        vm.expectRevert();
+        election.vote(id, candidates, weights);
+    }
+
+    function testVoteInvalidCandidate() public {
+        _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), 333e18);
+        uint256 id = ve.createLock(333e18, MAX_LOCK_DURATION);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+
+        vm.expectRevert(IElection.InvalidCandidate.selector);
+        election.vote(id, candidates, weights);
     }
 
     function _warpToNextVotePeriodStart() internal {
