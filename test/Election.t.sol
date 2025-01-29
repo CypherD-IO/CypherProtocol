@@ -370,6 +370,8 @@ contract ElectionTest is Test {
 
         uint256 balBefore = bribeAsset.balanceOf(address(this));
         bribeAsset.approve(address(election), 5e18);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.BribeAdded(address(bribeAsset), CANDIDATE1, block.timestamp, 5e18);
         election.addBribe(address(bribeAsset), 5e18, CANDIDATE1);
 
         assertEq(election.amountOfBribeTokenForCandidateInPeriod(address(bribeAsset), CANDIDATE1, block.timestamp), 5e18);
@@ -379,6 +381,8 @@ contract ElectionTest is Test {
 
         balBefore = bribeAsset.balanceOf(address(this));
         bribeAsset.approve(address(election), 3e18);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.BribeAdded(address(bribeAsset), CANDIDATE1, _periodStart(block.timestamp), 3e18);
         election.addBribe(address(bribeAsset), 3e18, CANDIDATE1);
 
         assertEq(election.amountOfBribeTokenForCandidateInPeriod(address(bribeAsset), CANDIDATE1, _periodStart(block.timestamp)), 8e18);
