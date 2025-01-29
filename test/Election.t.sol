@@ -6,8 +6,7 @@ import {IElection} from "../src/interfaces/IElection.sol";
 import {CypherToken} from "../src/CypherToken.sol";
 import {Election} from "../src/Election.sol";
 import {VotingEscrow} from "../src/VotingEscrow.sol";
-// import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
-// import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
+import {TestToken} from "./TestToken.sol";
 
 contract ElectionTest is Test {
     bytes32 constant CANDIDATE1 = keccak256(hex"f833a28e");
@@ -358,6 +357,58 @@ contract ElectionTest is Test {
 
         vm.expectRevert(IElection.InvalidCandidate.selector);
         election.vote(id, candidates, weights);
+    }
+
+    function testAddBribeBasic() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 100e18);
+
+        election.enableBribeToken(address(bribeAsset));
+        election.enableCandidate(CANDIDATE1);
+
+        _warpToNextVotePeriodStart();
+
+        uint256 balBefore = bribeAsset.balanceOf(address(this));
+        bribeAsset.approve(address(election), 5e18);
+        election.addBribe(address(bribeAsset), 5e18, CANDIDATE1);
+
+        assertEq(election.amountOfBribeTokenForCandidateInPeriod(address(bribeAsset), CANDIDATE1, block.timestamp), 5e18);
+        assertEq(bribeAsset.balanceOf(address(this)), balBefore - 5e18);
+
+        vm.warp(block.timestamp + 3 * VOTE_PERIOD / 4);
+
+        balBefore = bribeAsset.balanceOf(address(this));
+        bribeAsset.approve(address(election), 3e18);
+        election.addBribe(address(bribeAsset), 3e18, CANDIDATE1);
+
+        assertEq(election.amountOfBribeTokenForCandidateInPeriod(address(bribeAsset), CANDIDATE1, _periodStart(block.timestamp)), 8e18);
+        assertEq(bribeAsset.balanceOf(address(this)), balBefore - 3e18);
+    }
+
+    function testAddBribeInvalidBribeToken() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 100e18);
+
+        election.enableCandidate(CANDIDATE1);
+
+        _warpToNextVotePeriodStart();
+
+        bribeAsset.approve(address(election), 5e18);
+        vm.expectRevert(IElection.InvalidBribeToken.selector);
+        election.addBribe(address(bribeAsset), 5e18, CANDIDATE1);
+    }
+
+    function testAddBribeInvalidCandidate() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 100e18);
+
+        election.enableBribeToken(address(bribeAsset));
+
+        _warpToNextVotePeriodStart();
+
+        bribeAsset.approve(address(election), 5e18);
+        vm.expectRevert(IElection.InvalidCandidate.selector);
+        election.addBribe(address(bribeAsset), 5e18, CANDIDATE1);
     }
 
     function _warpToNextVotePeriodStart() internal {
