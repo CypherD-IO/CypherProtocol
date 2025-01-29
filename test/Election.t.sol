@@ -6,7 +6,7 @@ import {IElection} from "../src/interfaces/IElection.sol";
 import {CypherToken} from "../src/CypherToken.sol";
 import {Election} from "../src/Election.sol";
 import {VotingEscrow} from "../src/VotingEscrow.sol";
-import {TestToken} from "./TestToken.sol";
+import {TestToken} from "./mocks/TestToken.sol";
 
 contract ElectionTest is Test {
     bytes32 constant CANDIDATE1 = keccak256(hex"f833a28e");
