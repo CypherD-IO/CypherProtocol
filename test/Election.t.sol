@@ -374,7 +374,9 @@ contract ElectionTest is Test {
         emit IElection.BribeAdded(address(bribeAsset), CANDIDATE1, block.timestamp, 5e18);
         election.addBribe(address(bribeAsset), 5e18, CANDIDATE1);
 
-        assertEq(election.amountOfBribeTokenForCandidateInPeriod(address(bribeAsset), CANDIDATE1, block.timestamp), 5e18);
+        assertEq(
+            election.amountOfBribeTokenForCandidateInPeriod(address(bribeAsset), CANDIDATE1, block.timestamp), 5e18
+        );
         assertEq(bribeAsset.balanceOf(address(this)), balBefore - 5e18);
 
         vm.warp(block.timestamp + 3 * VOTE_PERIOD / 4);
@@ -385,7 +387,12 @@ contract ElectionTest is Test {
         emit IElection.BribeAdded(address(bribeAsset), CANDIDATE1, _periodStart(block.timestamp), 3e18);
         election.addBribe(address(bribeAsset), 3e18, CANDIDATE1);
 
-        assertEq(election.amountOfBribeTokenForCandidateInPeriod(address(bribeAsset), CANDIDATE1, _periodStart(block.timestamp)), 8e18);
+        assertEq(
+            election.amountOfBribeTokenForCandidateInPeriod(
+                address(bribeAsset), CANDIDATE1, _periodStart(block.timestamp)
+            ),
+            8e18
+        );
         assertEq(bribeAsset.balanceOf(address(this)), balBefore - 3e18);
     }
 
