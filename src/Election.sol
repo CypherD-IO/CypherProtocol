@@ -41,34 +41,30 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     /// @inheritdoc IElection
     function enableCandidate(bytes32 candidate) external onlyOwner {
-        if (!isCandidate[candidate]) {
-            isCandidate[candidate] = true;
-            emit CandidateEnabled(candidate);
-        }
+        if (isCandidate[candidate]) revert CandidateAlreadyEnabled();
+        isCandidate[candidate] = true;
+        emit CandidateEnabled(candidate);
     }
 
     /// @inheritdoc IElection
     function disableCandidate(bytes32 candidate) external onlyOwner {
-        if (isCandidate[candidate]) {
-            isCandidate[candidate] = false;
-            emit CandidateDisabled(candidate);
-        }
+        if (!isCandidate[candidate]) revert CandidateNotEnabled();
+        isCandidate[candidate] = false;
+        emit CandidateDisabled(candidate);
     }
 
     /// @inheritdoc IElection
     function enableBribeToken(address token) external onlyOwner {
-        if (!isBribeToken[token]) {
-            isBribeToken[token] = true;
-            emit BribeTokenEnabled(token);
-        }
+        if (isBribeToken[token]) revert BribeTokenAlreadyEnabled();
+        isBribeToken[token] = true;
+        emit BribeTokenEnabled(token);
     }
 
     /// @inheritdoc IElection
     function disableBribeToken(address token) external onlyOwner {
-        if (isBribeToken[token]) {
-            isBribeToken[token] = false;
-            emit BribeTokenDisabled(token);
-        }
+        if (!isBribeToken[token]) revert BribeTokenNotEnabled();
+        isBribeToken[token] = false;
+        emit BribeTokenDisabled(token);
     }
 
     /// @inheritdoc IElection

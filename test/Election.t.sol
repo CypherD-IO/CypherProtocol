@@ -39,16 +39,16 @@ contract ElectionTest is Test {
         election.enableCandidate(CANDIDATE1);
         assertTrue(election.isCandidate(CANDIDATE1));
 
-        // Enabling a second time is a no-op
+        // Enabling a second time is an error
+        vm.expectRevert(IElection.CandidateAlreadyEnabled.selector);
         election.enableCandidate(CANDIDATE1);
-        assertTrue(election.isCandidate(CANDIDATE1));
 
         election.disableCandidate(CANDIDATE1);
         assertFalse(election.isCandidate(CANDIDATE1));
 
-        // Disabling a second time is a no-op
+        // Disabling a second time is an error
+        vm.expectRevert(IElection.CandidateNotEnabled.selector);
         election.disableCandidate(CANDIDATE1);
-        assertFalse(election.isCandidate(CANDIDATE1));
     }
 
     function testEnableDisableCandidateAuth() public {
@@ -76,16 +76,16 @@ contract ElectionTest is Test {
         election.enableBribeToken(bribeTokenAddr);
         assertTrue(election.isBribeToken(bribeTokenAddr));
 
-        // Enabling a second time is a no-op
+        // Enabling a second time is an error
+        vm.expectRevert(IElection.BribeTokenAlreadyEnabled.selector);
         election.enableBribeToken(bribeTokenAddr);
-        assertTrue(election.isBribeToken(bribeTokenAddr));
 
         election.disableBribeToken(bribeTokenAddr);
         assertFalse(election.isBribeToken(bribeTokenAddr));
 
-        // Disabling a second time is a no-op
+        // Disabling a second time is an error
+        vm.expectRevert(IElection.BribeTokenNotEnabled.selector);
         election.disableBribeToken(bribeTokenAddr);
-        assertFalse(election.isBribeToken(bribeTokenAddr));
     }
 
     function testEnableDisableBribeTokenAuth() public {

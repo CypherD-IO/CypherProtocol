@@ -25,6 +25,10 @@ interface IElection {
 
     // --- Errors ---
 
+    error CandidateAlreadyEnabled();
+    error CandidateNotEnabled();
+    error BribeTokenAlreadyEnabled();
+    error BribeTokenNotEnabled();
     error NotAuthorizedForVoting();
     error LengthMismatch();
     error AlreadyVoted();
