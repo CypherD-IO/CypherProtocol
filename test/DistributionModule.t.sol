@@ -51,7 +51,7 @@ contract DistributionModuleTest is Test {
         token.transfer(address(safe), token.totalSupply());
     }
 
-    function testConstruction() public {
+    function testConstruction() public view {
         assertEq(module.owner(), owner);
         assertEq(address(module.token()), address(token));
         assertEq(address(module.safe()), address(safe));
@@ -70,26 +70,62 @@ contract DistributionModuleTest is Test {
         new DistributionModule(owner, address(safe), address(token), address(0));
     }
 
-    function testInitialSchedule() public {
+    function testInitialSchedule() public view {
         // Test first schedule (0-3 months)
         DistributionModule.EmissionSchedule[] memory schedules = module.getEmissionSchedules();
         DistributionModule.EmissionSchedule memory schedule = schedules[0];
 
-        assertEq(schedule.startTime, block.timestamp);
-        assertEq(schedule.tokensPerWeek, 5 * 1_000_000e18);
-        assertEq(schedule.durationWeeks, 13);
+        assertEq(schedule.startTime, block.timestamp, "incorrect start time 0");
+        assertEq(schedule.tokensPerWeek, 5 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 13, "incorrect duration weeks");
+
+        // Test second schedule (3-6 months)
+        schedule = schedules[1];
+        assertEq(schedule.startTime, block.timestamp + (13 * 1 weeks), "incorrect start time 1");
+        assertEq(schedule.tokensPerWeek, 10 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 13, "incorrect duration weeks");
+
+        // Test middle schedule (6-9 months)
+        schedule = schedules[2];
+        assertEq(schedule.startTime, block.timestamp + (26 * 1 weeks), "incorrect start time 2");
+        assertEq(schedule.tokensPerWeek, 15 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 13, "incorrect duration weeks");
+
+        // Test middle schedule (9 months - 2 years)
+        schedule = schedules[3];
+        assertEq(schedule.startTime, block.timestamp + (39 * 1 weeks), "incorrect start time 3");
+        assertEq(schedule.tokensPerWeek, 100 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 65, "incorrect duration weeks");
 
         // Test middle schedule (2-4 years)
-        schedule = schedules[8];
-        assertEq(schedule.startTime, block.timestamp + (13 * 8 * 1 weeks));
-        assertEq(schedule.tokensPerWeek, 80 * 1_000_000e18);
-        assertEq(schedule.durationWeeks, 104);
+        schedule = schedules[4];
+        assertEq(schedule.startTime, block.timestamp + (104 * 1 weeks), "incorrect start time 4");
+        assertEq(schedule.tokensPerWeek, 80 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 104, "incorrect duration weeks");
 
-        // Test last schedule (18-20 years)
-        schedule = schedules[16];
-        assertEq(schedule.startTime, block.timestamp + (13 * 8 * 1 weeks) + (104 * 8 * 1 weeks));
-        assertEq(schedule.tokensPerWeek, 10 * 1_000_000e18);
-        assertEq(schedule.durationWeeks, 104);
+        // Test last schedule (4-6 years)
+        schedule = schedules[5];
+        assertEq(schedule.startTime, block.timestamp + (208 * 1 weeks), "incorrect start time 5");
+        assertEq(schedule.tokensPerWeek, 40 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 104, "incorrect duration weeks");
+
+        // Test last schedule (6-10 years)
+        schedule = schedules[6];
+        assertEq(schedule.startTime, block.timestamp + 312 * 1 weeks, "incorrect start time 6");
+        assertEq(schedule.tokensPerWeek, 40 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 208, "incorrect duration weeks");
+
+        // Test last schedule (10-14 years)
+        schedule = schedules[7];
+        assertEq(schedule.startTime, block.timestamp + 520 * 1 weeks, "incorrect start time 7");
+        assertEq(schedule.tokensPerWeek, 30 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 208, "incorrect duration weeks");
+
+        // Test last schedule (14-20 years)
+        schedule = schedules[8];
+        assertEq(schedule.startTime, block.timestamp + 728 * 1 weeks, "incorrect start time 8");
+        assertEq(schedule.tokensPerWeek, 30 * 1_000_000e18 / schedule.durationWeeks, "incorrect tokens per week");
+        assertEq(schedule.durationWeeks, 312, "incorrect duration weeks");
     }
 
     function testNoPendingEmissionsBeforeTime() public {
@@ -106,7 +142,7 @@ contract DistributionModuleTest is Test {
 
         // Should get first week's emission from first schedule
         DistributionModule.EmissionSchedule[] memory schedule = module.getEmissionSchedules();
-        assertEq(module.getPendingEmission(), schedule[0].tokensPerWeek);
+        assertEq(module.getPendingEmission(), schedule[0].tokensPerWeek, "incorrect tokens in pending emissions");
     }
 
     function testPendingEmissionsMultipleWeeks() public {
@@ -115,7 +151,11 @@ contract DistributionModuleTest is Test {
 
         // Should get 3 weeks of emissions from first schedule
         DistributionModule.EmissionSchedule[] memory schedule = module.getEmissionSchedules();
-        assertEq(module.getPendingEmission(), schedule[0].tokensPerWeek * 3);
+        assertEq(
+            module.getPendingEmission(),
+            schedule[0].tokensPerWeek * 3,
+            "incorrect tokens in pending emissions, should be 3 weeks"
+        );
     }
 
     function testEmitTokens() public {
@@ -123,7 +163,7 @@ contract DistributionModuleTest is Test {
         vm.warp(block.timestamp + 2 weeks);
 
         uint256 expectedAmount = module.getPendingEmission();
-        assertTrue(expectedAmount > 0);
+        assertGt(expectedAmount, 0, "expected amount not gt 0");
 
         uint256 balanceBefore = token.balanceOf(emissionAddress);
 
@@ -156,15 +196,19 @@ contract DistributionModuleTest is Test {
         module.updateEmissionAddress(newEmissionAddress);
 
         // Verify address was updated
-        assertEq(module.emissionAddress(), newEmissionAddress);
+        assertEq(module.emissionAddress(), newEmissionAddress, "emission address incorrect");
 
         // Verify pending tokens were emitted to old address
-        assertEq(token.balanceOf(emissionAddress), pendingAmount);
+        assertEq(token.balanceOf(emissionAddress), pendingAmount, "pending amount incorrect");
 
         // Warp again and verify new emissions go to new address
         vm.warp(block.timestamp + 1 weeks + 1);
         module.emitTokens();
-        assertEq(token.balanceOf(newEmissionAddress), module.getEmissionSchedules()[0].tokensPerWeek);
+        assertEq(
+            token.balanceOf(newEmissionAddress),
+            module.getEmissionSchedules()[0].tokensPerWeek,
+            "tokens per week not distributed"
+        );
     }
 
     function testUpdateEmissionAddressRevertsOnZeroAddress() public {
@@ -197,7 +241,7 @@ contract DistributionModuleTest is Test {
 
         // Should only get 1 week of emissions
         DistributionModule.EmissionSchedule memory schedule = module.getEmissionSchedules()[0];
-        assertEq(module.getPendingEmission(), schedule.tokensPerWeek);
+        assertEq(module.getPendingEmission(), schedule.tokensPerWeek, "emissions incorrect at week 1.5");
     }
 
     function testEmissionEventEmitted() public {
