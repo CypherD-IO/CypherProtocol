@@ -35,6 +35,9 @@ contract DistributionModuleTest is Test {
 
     /// @notice Emitted when emission address is updated
     event EmissionAddressUpdated(address oldAddress, address newAddress);
+    
+    /// @notice start time of the distribution schedule
+    uint256 public startTime = 2002;
 
     function setUp() public {
         token = new MockToken();
@@ -42,7 +45,9 @@ contract DistributionModuleTest is Test {
         owner = address(this);
         emissionAddress = address(0xE1);
 
-        module = new DistributionModule(owner, address(safe), address(token), emissionAddress);
+
+        module = new DistributionModule(owner, address(safe), address(token), emissionAddress, startTime);
+        vm.warp(startTime);
 
         // Enable module in Safe
         safe.enableModuleMock(address(module));
@@ -52,22 +57,25 @@ contract DistributionModuleTest is Test {
     }
 
     function testConstruction() public view {
-        assertEq(module.owner(), owner);
-        assertEq(address(module.token()), address(token));
-        assertEq(address(module.safe()), address(safe));
-        assertEq(module.emissionAddress(), emissionAddress);
-        assertEq(module.lastEmissionTime(), block.timestamp);
+        assertEq(module.owner(), owner, "owner incorrect");
+        assertEq(address(module.token()), address(token), "token address incorrect");
+        assertEq(address(module.safe()), address(safe), "safe address incorrect");
+        assertEq(module.emissionAddress(), emissionAddress, "emission address incorrect");
+        assertEq(module.lastEmissionTime(), startTime, "last emission time incorrect");
     }
 
     function testConstructionReverts() public {
         vm.expectRevert("Invalid Safe address");
-        new DistributionModule(owner, address(0), address(token), emissionAddress);
+        new DistributionModule(owner, address(0), address(token), emissionAddress, 0);
 
         vm.expectRevert("Invalid token address");
-        new DistributionModule(owner, address(safe), address(0), emissionAddress);
+        new DistributionModule(owner, address(safe), address(0), emissionAddress, 0);
 
         vm.expectRevert("Invalid emission address");
-        new DistributionModule(owner, address(safe), address(token), address(0));
+        new DistributionModule(owner, address(safe), address(token), address(0), 0);
+
+        vm.expectRevert("Invalid start time");
+        new DistributionModule(owner, address(safe), address(token), address(1), 0);
     }
 
     function testInitialSchedule() public view {
