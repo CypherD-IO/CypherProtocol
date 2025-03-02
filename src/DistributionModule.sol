@@ -102,6 +102,9 @@ contract DistributionModule is Ownable {
         private
         returns (uint256 newStartTime)
     {
+        /// This fails to emit a dust amount of the total tokens over each
+        /// emission period. Seems insignificant so marking it as a known issue
+        /// and won't fix.
         emissionSchedules.push(
             EmissionSchedule(
                 startTime,
@@ -111,11 +114,6 @@ contract DistributionModule is Ownable {
         );
 
         return startTime + (durationWeeks * WEEK);
-    }
-
-    /// @notice Initialize the emission schedule according to the specified timeline
-    function _initializeEmissionSchedule(uint256 startTime) private {
-
     }
 
     function getEmissionSchedules() public view returns (EmissionSchedule[] memory schedule) {
