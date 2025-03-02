@@ -38,6 +38,8 @@ contract DistributionModule is Ownable {
     EmissionSchedule[] public emissionSchedules;
 
     /// @notice Weekly duration in seconds
+    /// note: this contract does not factor in leap years so schedules will
+    /// shift and not track exactly with the calendar year.
     uint256 public constant WEEK = 7 days;
 
     /// @notice Emitted when tokens are distributed
@@ -76,10 +78,11 @@ contract DistributionModule is Ownable {
         emissionSchedules.push(
             EmissionSchedule(
                 startTime,
-                totalTokens * 1_000_000e18, // Weekly rate (totalTokens is in millions)
+                totalTokens * 1_000_000e18 / durationWeeks, // Weekly rate (totalTokens is in millions)
                 durationWeeks
             )
         );
+
         return startTime + (durationWeeks * WEEK);
     }
 
@@ -91,22 +94,26 @@ contract DistributionModule is Ownable {
         startTime = _pushEmissionSchedule(5, 13, startTime); // 0-3 months - 5M tokens
         startTime = _pushEmissionSchedule(10, 13, startTime); // 3-6 months - 10M tokens
         startTime = _pushEmissionSchedule(15, 13, startTime); // 6-9 months - 15M tokens
-        startTime = _pushEmissionSchedule(20, 13, startTime); // 9-12 months - 20M tokens
-        startTime = _pushEmissionSchedule(20, 13, startTime); // 12-15 months - 20M tokens
-        startTime = _pushEmissionSchedule(20, 13, startTime); // 15-18 months - 20M tokens
-        startTime = _pushEmissionSchedule(20, 13, startTime); // 18-21 months - 20M tokens
-        startTime = _pushEmissionSchedule(20, 13, startTime); // 21-24 months - 20M tokens
+
+        // 80m tokens per year
+        startTime = _pushEmissionSchedule(100, 65, startTime); // 9 months - 2 years - 100M tokens
 
         // Years 2-20 - 104 week periods
+
+        // 40m tokens per year
         startTime = _pushEmissionSchedule(80, 104, startTime); // 2-4 years - 80M tokens
+
+        // 20m tokens per year
         startTime = _pushEmissionSchedule(40, 104, startTime); // 4-6 years - 40M tokens
-        startTime = _pushEmissionSchedule(20, 104, startTime); // 6-8 years - 20M tokens
-        startTime = _pushEmissionSchedule(20, 104, startTime); // 8-10 years - 20M tokens
-        startTime = _pushEmissionSchedule(15, 104, startTime); // 10-12 years - 15M tokens
-        startTime = _pushEmissionSchedule(15, 104, startTime); // 12-14 years - 15M tokens
-        startTime = _pushEmissionSchedule(10, 104, startTime); // 14-16 years - 10M tokens
-        startTime = _pushEmissionSchedule(10, 104, startTime); // 16-18 years - 10M tokens
-        startTime = _pushEmissionSchedule(10, 104, startTime); // 18-20 years - 10M tokens
+
+        // 10m tokens per year
+        startTime = _pushEmissionSchedule(40, 208, startTime); // 6-10 years - 40M tokens
+
+        // 7.5m tokens per year
+        startTime = _pushEmissionSchedule(30, 208, startTime); // 10-14 years - 30M tokens
+
+        // 5m tokens per year
+        startTime = _pushEmissionSchedule(30, 312, startTime); // 14-20 years - 30M tokens
     }
 
     function getEmissionSchedules() public view returns (EmissionSchedule[] memory schedule) {
