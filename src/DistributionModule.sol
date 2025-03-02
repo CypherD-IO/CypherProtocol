@@ -52,7 +52,7 @@ contract DistributionModule is Ownable {
     /// @param _safe Address of the Gnosis Safe
     /// @param _token Address of the token to emit
     /// @param _emissionAddress Initial emission address
-    constructor(address _owner, address _safe, address _token, address _emissionAddress) Ownable(_owner) {
+    constructor(address _owner, address _safe, address _token, address _emissionAddress, uint256 _startTime) Ownable(_owner) {
         require(_safe != address(0), "Invalid Safe address");
         require(_token != address(0), "Invalid token address");
         require(_emissionAddress != address(0), "Invalid emission address");
@@ -60,10 +60,37 @@ contract DistributionModule is Ownable {
         safe = _safe;
         token = IERC20(_token);
         emissionAddress = _emissionAddress;
-        lastEmissionTime = block.timestamp;
 
         // Initialize emission schedule
-        _initializeEmissionSchedule();
+
+        require(_startTime > block.timestamp, "Invalid start time");
+
+        lastEmissionTime = _startTime;
+
+        // First 24 months - 13 week periods
+        _startTime = _pushEmissionSchedule(5, 13, _startTime); // 0-3 months - 5M tokens
+        _startTime = _pushEmissionSchedule(10, 13, _startTime); // 3-6 months - 10M tokens
+        _startTime = _pushEmissionSchedule(15, 13, _startTime); // 6-9 months - 15M tokens
+
+        // 80m tokens per year
+        _startTime = _pushEmissionSchedule(100, 65, _startTime); // 9 months - 2 years - 100M tokens
+
+        // Years 2-20 - 104 week periods
+
+        // 40m tokens per year
+        _startTime = _pushEmissionSchedule(80, 104, _startTime); // 2-4 years - 80M tokens
+
+        // 20m tokens per year
+        _startTime = _pushEmissionSchedule(40, 104, _startTime); // 4-6 years - 40M tokens
+
+        // 10m tokens per year
+        _startTime = _pushEmissionSchedule(40, 208, _startTime); // 6-10 years - 40M tokens
+
+        // 7.5m tokens per year
+        _startTime = _pushEmissionSchedule(30, 208, _startTime); // 10-14 years - 30M tokens
+
+        // 5m tokens per year
+        _startTime = _pushEmissionSchedule(30, 312, _startTime); // 14-20 years - 30M tokens
     }
 
     /// @dev Helper to push a new emission schedule
@@ -87,33 +114,8 @@ contract DistributionModule is Ownable {
     }
 
     /// @notice Initialize the emission schedule according to the specified timeline
-    function _initializeEmissionSchedule() private {
-        uint256 startTime = block.timestamp;
+    function _initializeEmissionSchedule(uint256 startTime) private {
 
-        // First 24 months - 13 week periods
-        startTime = _pushEmissionSchedule(5, 13, startTime); // 0-3 months - 5M tokens
-        startTime = _pushEmissionSchedule(10, 13, startTime); // 3-6 months - 10M tokens
-        startTime = _pushEmissionSchedule(15, 13, startTime); // 6-9 months - 15M tokens
-
-        // 80m tokens per year
-        startTime = _pushEmissionSchedule(100, 65, startTime); // 9 months - 2 years - 100M tokens
-
-        // Years 2-20 - 104 week periods
-
-        // 40m tokens per year
-        startTime = _pushEmissionSchedule(80, 104, startTime); // 2-4 years - 80M tokens
-
-        // 20m tokens per year
-        startTime = _pushEmissionSchedule(40, 104, startTime); // 4-6 years - 40M tokens
-
-        // 10m tokens per year
-        startTime = _pushEmissionSchedule(40, 208, startTime); // 6-10 years - 40M tokens
-
-        // 7.5m tokens per year
-        startTime = _pushEmissionSchedule(30, 208, startTime); // 10-14 years - 30M tokens
-
-        // 5m tokens per year
-        startTime = _pushEmissionSchedule(30, 312, startTime); // 14-20 years - 30M tokens
     }
 
     function getEmissionSchedules() public view returns (EmissionSchedule[] memory schedule) {
