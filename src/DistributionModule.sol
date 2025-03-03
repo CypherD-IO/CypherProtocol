@@ -162,6 +162,14 @@ contract DistributionModule is Ownable {
     /// @notice Emit tokens according to schedule
     function emitTokens() public {
         uint256 amount = getPendingEmission();
+        /// @dev without this require statement, the contract will fail to emit
+        /// tokens if the amount is 0. This is a known issue and won't fix.
+        ///
+        /// Cause:
+        ///   - getPendingEmission() returns 0 if lastEmissionTime is during
+        ///  the current period
+        ///   - if amount is not greater than 0, and the lastEmissionTime is
+        ///  updated to the current block timestamp
         require(amount > 0, "No pending emissions");
 
         lastEmissionTime = block.timestamp - (block.timestamp % WEEK);
