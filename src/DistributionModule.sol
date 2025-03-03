@@ -52,7 +52,9 @@ contract DistributionModule is Ownable {
     /// @param _safe Address of the Gnosis Safe
     /// @param _token Address of the token to emit
     /// @param _emissionAddress Initial emission address
-    constructor(address _owner, address _safe, address _token, address _emissionAddress, uint256 _startTime) Ownable(_owner) {
+    constructor(address _owner, address _safe, address _token, address _emissionAddress, uint256 _startTime)
+        Ownable(_owner)
+    {
         require(_safe != address(0), "Invalid Safe address");
         require(_token != address(0), "Invalid token address");
         require(_emissionAddress != address(0), "Invalid emission address");

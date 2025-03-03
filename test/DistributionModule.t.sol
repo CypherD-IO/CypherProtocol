@@ -35,7 +35,7 @@ contract DistributionModuleTest is Test {
 
     /// @notice Emitted when emission address is updated
     event EmissionAddressUpdated(address oldAddress, address newAddress);
-    
+
     /// @notice start time of the distribution schedule
     uint256 public startTime = 2002;
 
@@ -44,7 +44,6 @@ contract DistributionModuleTest is Test {
         safe = new MockSafe();
         owner = address(this);
         emissionAddress = address(0xE1);
-
 
         module = new DistributionModule(owner, address(safe), address(token), emissionAddress, startTime);
         vm.warp(startTime);
