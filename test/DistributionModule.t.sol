@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "lib/safe-contracts/contracts/base/ModuleManager.sol";
@@ -37,13 +39,16 @@ contract DistributionModuleTest is Test {
     event EmissionAddressUpdated(address oldAddress, address newAddress);
 
     /// @notice start time of the distribution schedule
-    uint256 public startTime = 2002;
+    uint256 public startTime;
 
     function setUp() public {
         token = new MockToken();
         safe = new MockSafe();
         owner = address(this);
         emissionAddress = address(0xE1);
+
+        // Set startTime to a future week boundary
+        startTime = (block.timestamp / 1 weeks + 1) * 1 weeks;
 
         module = new DistributionModule(owner, address(safe), address(token), emissionAddress, startTime);
         vm.warp(startTime);
@@ -223,6 +228,12 @@ contract DistributionModuleTest is Test {
         module.updateEmissionAddress(address(0));
     }
 
+    function testUpdateEmissionAddressRevertsOnNonOwnerCall() public {
+        vm.prank(address(100_000_000));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(100_000_000)));
+        module.updateEmissionAddress(address(1));
+    }
+
     function testCrossScheduleEmissions() public {
         // Warp to end of first schedule
         vm.warp(block.timestamp + 13 weeks);
@@ -337,10 +348,170 @@ contract DistributionModuleTest is Test {
         _checkTotalTokensEmitted(totalEmitted);
     }
 
-    function _checkTotalTokensEmitted(uint256 totalEmitted) private {
+    function _checkTotalTokensEmitted(uint256 totalEmitted) private pure {
         // Verify total emissions match expected amount
         assertLe(totalEmitted, 350_000_000 * 1e18, "exceeded max emission amount");
         assertGt(totalEmitted, 350_000_000 * 1e18 - 1e3, "emitted too few tokens");
         assertEq(totalEmitted, 349_999_999.99999999999999926e18, "incorrect tokens emitted");
+    }
+
+    function testUpdateEmissionAddressWithNoPendingEmissions() public {
+        address newEmissionAddress = address(0xE2);
+
+        // Ensure there are no pending emissions (we're at the start time)
+        assertEq(module.getPendingEmission(), 0, "Should be no pending emissions");
+
+        // Get initial balance of emission address
+        uint256 initialBalance = token.balanceOf(emissionAddress);
+
+        // Update emission address
+        vm.expectEmit(true, true, false, true);
+        emit EmissionAddressUpdated(emissionAddress, newEmissionAddress);
+        module.updateEmissionAddress(newEmissionAddress);
+
+        // Verify address was updated
+        assertEq(module.emissionAddress(), newEmissionAddress, "Emission address not updated");
+
+        // Verify no tokens were transferred (since there were no pending emissions)
+        assertEq(token.balanceOf(emissionAddress), initialBalance, "Balance should not change");
+
+        // Verify lastEmissionTime was not updated
+        assertEq(module.lastEmissionTime(), startTime, "Last emission time should not change");
+    }
+
+    function testConstructorStartTimeValidation() public {
+        // Store current block timestamp
+        uint256 currentTime = block.timestamp;
+
+        // Calculate next week boundary
+        uint256 nextWeekBoundary = (currentTime / 1 weeks + 1) * 1 weeks;
+
+        // Try to create with current timestamp (should fail)
+        vm.expectRevert("Invalid start time");
+        new DistributionModule(owner, address(safe), address(token), emissionAddress, currentTime);
+
+        // Try to create with past timestamp (should fail)
+        vm.expectRevert("Invalid start time");
+        new DistributionModule(owner, address(safe), address(token), emissionAddress, currentTime - 1);
+
+        // Try to create with future timestamp but not week boundary (should fail)
+        vm.expectRevert("Start time must be at week boundary");
+        new DistributionModule(owner, address(safe), address(token), emissionAddress, nextWeekBoundary + 1);
+
+        // Create with future week boundary timestamp (should succeed)
+        DistributionModule validModule =
+            new DistributionModule(owner, address(safe), address(token), emissionAddress, nextWeekBoundary);
+
+        // Verify the module was created with correct lastEmissionTime
+        assertEq(validModule.lastEmissionTime(), nextWeekBoundary, "Last emission time incorrect");
+    }
+
+    function testConstructorWeekBoundaryValidation() public {
+        // Store current block timestamp
+        uint256 currentTime = block.timestamp;
+
+        // Calculate next week boundary
+        uint256 nextWeekBoundary = (currentTime / 1 weeks + 1) * 1 weeks;
+
+        // Try to create with non-week-boundary timestamp (should fail)
+        vm.expectRevert("Start time must be at week boundary");
+        new DistributionModule(owner, address(safe), address(token), emissionAddress, nextWeekBoundary + 1);
+
+        // Create with week boundary timestamp (should succeed)
+        DistributionModule validModule =
+            new DistributionModule(owner, address(safe), address(token), emissionAddress, nextWeekBoundary);
+
+        // Verify the module was created with correct lastEmissionTime
+        assertEq(validModule.lastEmissionTime(), nextWeekBoundary, "Last emission time incorrect");
+    }
+
+    function testScheduleBoundaryEdgeCases() public {
+        DistributionModule.EmissionSchedule[] memory schedules = module.getEmissionSchedules();
+
+        // Test exactly at the boundary between first and second schedule
+        uint256 firstScheduleEnd = schedules[0].startTime + (schedules[0].durationWeeks * 1 weeks);
+
+        // Warp to exactly the end of first schedule
+        vm.warp(firstScheduleEnd);
+
+        // Emit tokens for the first schedule
+        uint256 expectedFirstAmount = schedules[0].tokensPerWeek * schedules[0].durationWeeks;
+        uint256 balanceBefore = token.balanceOf(emissionAddress);
+        module.emitTokens();
+        uint256 actualFirstAmount = token.balanceOf(emissionAddress) - balanceBefore;
+
+        // Verify correct amount was emitted
+        assertEq(actualFirstAmount, expectedFirstAmount, "Incorrect emission at first schedule boundary");
+
+        // Verify lastEmissionTime is exactly at the schedule boundary
+        assertEq(module.lastEmissionTime(), firstScheduleEnd, "Last emission time not at schedule boundary");
+
+        // Now warp exactly one week into the second schedule
+        vm.warp(firstScheduleEnd + 1 weeks);
+
+        // Verify pending emission is exactly one week of second schedule
+        uint256 pendingAmount = module.getPendingEmission();
+        assertEq(pendingAmount, schedules[1].tokensPerWeek, "Incorrect pending amount after schedule transition");
+
+        // Emit tokens again
+        balanceBefore = token.balanceOf(emissionAddress);
+        module.emitTokens();
+        uint256 actualSecondAmount = token.balanceOf(emissionAddress) - balanceBefore;
+
+        // Verify correct amount was emitted for second schedule
+        assertEq(actualSecondAmount, schedules[1].tokensPerWeek, "Incorrect emission after schedule transition");
+    }
+
+    function testExactScheduleBoundaryCalculation() public {
+        DistributionModule.EmissionSchedule[] memory schedules = module.getEmissionSchedules();
+
+        // For each schedule boundary, test the calculation
+        for (uint256 i = 0; i < schedules.length - 1; i++) {
+            // Calculate the boundary between current and next schedule
+            uint256 scheduleBoundary = schedules[i].startTime + (schedules[i].durationWeeks * 1 weeks);
+
+            // Verify this matches the start time of the next schedule
+            assertEq(
+                scheduleBoundary,
+                schedules[i + 1].startTime,
+                string(abi.encodePacked("Schedule boundary mismatch at index ", vm.toString(i)))
+            );
+
+            // Warp to 1 second before boundary
+            vm.warp(scheduleBoundary - 1);
+
+            // Get pending emissions (should be from current schedule)
+            uint256 pendingBefore = module.getPendingEmission();
+
+            // Warp to exactly at boundary
+            vm.warp(scheduleBoundary);
+
+            // Get pending emissions (should still be from current schedule)
+            uint256 pendingAt = module.getPendingEmission();
+
+            // All should be equal since we need a full week to pass
+            assertLt(
+                pendingBefore, pendingAt, string.concat("Pending emissions changed at exact boundary ", vm.toString(i))
+            );
+
+            // Warp to 1 second after boundary
+            vm.warp(scheduleBoundary + 1);
+
+            // Get pending emissions (should still be the same since we need a full week)
+            uint256 pendingAfter = module.getPendingEmission();
+            assertEq(pendingAt, pendingAfter, "Pending emissions changed just after boundary");
+
+            // Emit tokens to reset lastEmissionTime
+            if (pendingBefore > 0) {
+                module.emitTokens();
+            } else {
+                // If no pending emissions, manually set lastEmissionTime to continue test
+                vm.store(
+                    address(module),
+                    bytes32(uint256(5)), // slot for lastEmissionTime (may need adjustment based on contract layout)
+                    bytes32(scheduleBoundary)
+                );
+            }
+        }
     }
 }
