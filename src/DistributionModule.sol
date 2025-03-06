@@ -141,15 +141,14 @@ contract DistributionModule is Ownable {
             // Skip if we're past this schedule's end time
             if (lastEmissionTime >= scheduleEndTime) continue;
 
-            // Calculate weeks within this schedule's bounds
-            uint256 effectiveStartTime = Math.max(lastEmissionTime, schedule.startTime);
+            // Calculate end time within this schedule's bounds
             uint256 effectiveEndTime = Math.min(block.timestamp, scheduleEndTime);
 
             // Calculate actual weeks to count based on effective times
             uint256 weeksToCount;
-            if (effectiveStartTime >= schedule.startTime) {
+            if (lastEmissionTime >= schedule.startTime) {
                 // If we're starting within this schedule period
-                weeksToCount = (effectiveEndTime - effectiveStartTime) / WEEK;
+                weeksToCount = (effectiveEndTime - lastEmissionTime) / WEEK;
             } else {
                 // If we're starting before this schedule period
                 weeksToCount = (effectiveEndTime - schedule.startTime) / WEEK;
