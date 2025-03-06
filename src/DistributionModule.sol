@@ -52,6 +52,7 @@ contract DistributionModule is Ownable {
     /// @param _safe Address of the Gnosis Safe
     /// @param _token Address of the token to emit
     /// @param _emissionAddress Initial emission address
+    /// @param _startTime Start time of the emission schedule, must be at a week boundary
     constructor(address _owner, address _safe, address _token, address _emissionAddress, uint256 _startTime)
         Ownable(_owner)
     {
@@ -66,6 +67,7 @@ contract DistributionModule is Ownable {
         // Initialize emission schedule
 
         require(_startTime > block.timestamp, "Invalid start time");
+        require(_startTime % WEEK == 0, "Start time must be at week boundary");
 
         lastEmissionTime = _startTime;
 
