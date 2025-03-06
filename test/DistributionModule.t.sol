@@ -296,6 +296,49 @@ contract DistributionModuleTest is Test {
 
         uint256 totalEmitted = token.balanceOf(emissionAddress) - balanceBefore;
 
+        _checkTotalTokensEmitted(totalEmitted);
+    }
+
+    function testEmitTokensForAllSchedules() public {
+        DistributionModule.EmissionSchedule[] memory schedules = module.getEmissionSchedules();
+        uint256 totalEmitted = 0;
+
+        for (uint256 i = 0; i < schedules.length; i++) {
+            DistributionModule.EmissionSchedule memory schedule = schedules[i];
+
+            // Warp to the end of this schedule
+            uint256 scheduleEndTime = schedule.startTime + (schedule.durationWeeks * 1 weeks);
+            vm.warp(scheduleEndTime);
+
+            // Record balance before emission
+            uint256 balanceBefore = token.balanceOf(emissionAddress);
+
+            // Emit tokens
+            module.emitTokens();
+
+            // Calculate actual emitted amount
+            uint256 emittedAmount = token.balanceOf(emissionAddress) - balanceBefore;
+            totalEmitted += emittedAmount;
+
+            // Calculate expected emission for this schedule period
+            uint256 expectedEmission = schedule.tokensPerWeek * schedule.durationWeeks;
+
+            // Verify tokens were transferred correctly
+            assertEq(
+                emittedAmount,
+                expectedEmission,
+                string(abi.encodePacked("Schedule ", vm.toString(i), " emission incorrect"))
+            );
+
+            // Verify lastEmissionTime was updated correctly
+            assertEq(module.lastEmissionTime(), scheduleEndTime - (scheduleEndTime % 1 weeks));
+        }
+
+        _checkTotalTokensEmitted(totalEmitted);
+    }
+
+    function _checkTotalTokensEmitted(uint256 totalEmitted) private {
+        // Verify total emissions match expected amount
         assertLe(totalEmitted, 350_000_000 * 1e18, "exceeded max emission amount");
         assertGt(totalEmitted, 350_000_000 * 1e18 - 1e3, "emitted too few tokens");
         assertEq(totalEmitted, 349_999_999.99999999999999926e18, "incorrect tokens emitted");
