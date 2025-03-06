@@ -501,17 +501,7 @@ contract DistributionModuleTest is Test {
             uint256 pendingAfter = module.getPendingEmission();
             assertEq(pendingAt, pendingAfter, "Pending emissions changed just after boundary");
 
-            // Emit tokens to reset lastEmissionTime
-            if (pendingBefore > 0) {
-                module.emitTokens();
-            } else {
-                // If no pending emissions, manually set lastEmissionTime to continue test
-                vm.store(
-                    address(module),
-                    bytes32(uint256(5)), // slot for lastEmissionTime (may need adjustment based on contract layout)
-                    bytes32(scheduleBoundary)
-                );
-            }
+            module.emitTokens();
         }
     }
 }
