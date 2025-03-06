@@ -283,4 +283,21 @@ contract DistributionModuleTest is Test {
         vm.expectRevert("Token transfer failed");
         module.emitTokens();
     }
+
+    function testTotalEmissionAmount() public {
+        DistributionModule.EmissionSchedule[] memory schedules = module.getEmissionSchedules();
+        DistributionModule.EmissionSchedule memory last = schedules[schedules.length - 1];
+        uint256 endTime = last.startTime + last.durationWeeks * 1 weeks + 1;
+        vm.warp(endTime);
+
+        uint256 balanceBefore = token.balanceOf(emissionAddress);
+
+        module.emitTokens();
+
+        uint256 totalEmitted = token.balanceOf(emissionAddress) - balanceBefore;
+
+        assertLe(totalEmitted, 350_000_000 * 1e18, "exceeded max emission amount");
+        assertGt(totalEmitted, 350_000_000 * 1e18 - 1e3, "emitted too few tokens");
+        assertEq(totalEmitted, 349_999_999.99999999999999926e18, "incorrect tokens emitted");
+    }
 }
