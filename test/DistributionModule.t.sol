@@ -406,25 +406,6 @@ contract DistributionModuleTest is Test {
         assertEq(validModule.lastEmissionTime(), nextWeekBoundary, "Last emission time incorrect");
     }
 
-    function testConstructorWeekBoundaryValidation() public {
-        // Store current block timestamp
-        uint256 currentTime = block.timestamp;
-
-        // Calculate next week boundary
-        uint256 nextWeekBoundary = (currentTime / 1 weeks + 1) * 1 weeks;
-
-        // Try to create with non-week-boundary timestamp (should fail)
-        vm.expectRevert("Start time must be at week boundary");
-        new DistributionModule(owner, address(safe), address(token), emissionAddress, nextWeekBoundary + 1);
-
-        // Create with week boundary timestamp (should succeed)
-        DistributionModule validModule =
-            new DistributionModule(owner, address(safe), address(token), emissionAddress, nextWeekBoundary);
-
-        // Verify the module was created with correct lastEmissionTime
-        assertEq(validModule.lastEmissionTime(), nextWeekBoundary, "Last emission time incorrect");
-    }
-
     function testScheduleBoundaryEdgeCases() public {
         DistributionModule.EmissionSchedule[] memory schedules = module.getEmissionSchedules();
 
@@ -489,7 +470,6 @@ contract DistributionModuleTest is Test {
             // Get pending emissions (should still be from current schedule)
             uint256 pendingAt = module.getPendingEmission();
 
-            // All should be equal since we need a full week to pass
             assertLt(
                 pendingBefore, pendingAt, string.concat("Pending emissions changed at exact boundary ", vm.toString(i))
             );
