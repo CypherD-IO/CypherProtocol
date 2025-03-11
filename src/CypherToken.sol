@@ -10,9 +10,8 @@ import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 /// @notice The token for the Cypher ecosystem.
 contract CypherToken is ICypherToken, ERC20Permit, ERC20Votes {
     constructor(address treasury) ERC20("Cypher", "CYPR") ERC20Permit("Cypher") {
-        // TODO: mint tokens to appropriate recipients or decide to do this via transfers
-        // from the treasury
-        _mint(treasury, 499_500_000 * 1e18);
+        // mint tokens to recipients and handle the rest via transfers from the treasury
+        _mint(treasury, 1_000_000_000 * 1e18);
     }
 
     function _update(address from, address to, uint256 value) internal override(ERC20Votes, ERC20) {

@@ -14,7 +14,7 @@ contract CypherTokenTest is Test {
     function testConstruction() public view {
         assertEq(token.name(), "Cypher");
         assertEq(token.symbol(), "CYPR");
-        assertEq(token.totalSupply(), 499_500_000 * 1e18);
+        assertEq(token.totalSupply(), 1_000_000_000 * 1e18);
         assertEq(token.balanceOf(address(this)), token.totalSupply());
     }
 
