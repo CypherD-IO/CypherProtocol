@@ -452,7 +452,7 @@ contract ElectionTest is Test {
 
         uint256 balBefore = bribeAsset.balanceOf(address(this));
         election.claimBribes(id, bribeTokens, candidates, previousPeriod, previousPeriod);
-        assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 5e18);  // Receive entire bribe.
+        assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 5e18); // Receive entire bribe.
         assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, previousPeriod));
 
         // Attempting a second claim is a no-op

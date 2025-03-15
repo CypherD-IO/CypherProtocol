@@ -34,7 +34,9 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     // Each bit of each entry in an array stored in the below mapping is used to flag whether a user has claimed for
     // a particular period. 11 * 256 = 2816; with 2 week periods, this allows for storing over 108 years of records.
-    mapping(uint256 tokenId => mapping(address bribeToken => mapping(bytes32 candidate => uint256[11] bribeClaimRecords))) private bribeClaimRecords;
+    mapping(
+        uint256 tokenId => mapping(address bribeToken => mapping(bytes32 candidate => uint256[11] bribeClaimRecords))
+    ) private bribeClaimRecords;
 
     // --- Constructor ---
 
@@ -172,7 +174,11 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     // --- Views ---
 
-    function hasClaimedBribe(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp) external view returns (bool) {
+    function hasClaimedBribe(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
+        external
+        view
+        returns (bool)
+    {
         uint256 periodStart = _votingPeriodStart(timestamp);
         if (periodStart < INITIAL_PERIOD_START) revert("timestamp precedes first period");
         return _isBribeClaimed(tokenId, bribeToken, candidate, periodStart);
@@ -190,14 +196,20 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         return _votingPeriodStart(timestamp) + VOTE_PERIOD;
     }
 
-    function _isBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart) internal view returns (bool) {
+    function _isBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart)
+        internal
+        view
+        returns (bool)
+    {
         (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
         uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
         uint256 mask = 1 << bit;
         return ((records[index] & mask) != 0);
     }
 
-    function _recordBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart) internal {
+    function _recordBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart)
+        internal
+    {
         (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
         uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
         uint256 mask = 1 << bit;
