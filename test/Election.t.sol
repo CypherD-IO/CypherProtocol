@@ -422,6 +422,45 @@ contract ElectionTest is Test {
         election.addBribe(address(bribeAsset), 5e18, CANDIDATE1);
     }
 
+    function testClaimBribesBasic() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 100e18);
+
+        cypher.approve(address(ve), 10e18);
+        uint256 id = ve.createLock(10e18, MAX_LOCK_DURATION);
+
+        _warpToNextVotePeriodStart();
+
+        election.enableCandidate(CANDIDATE1);
+
+        election.enableBribeToken(address(bribeAsset));
+        bribeAsset.approve(address(election), 5e18);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.BribeAdded(address(bribeAsset), CANDIDATE1, block.timestamp, 5e18);
+        election.addBribe(address(bribeAsset), 5e18, CANDIDATE1);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+        election.vote(id, candidates, weights);
+
+        _warpToNextVotePeriodStart();
+        uint256 previousPeriod = block.timestamp - VOTE_PERIOD;
+        address[] memory bribeTokens = new address[](1);
+        bribeTokens[0] = address(bribeAsset);
+
+        uint256 balBefore = bribeAsset.balanceOf(address(this));
+        election.claimBribes(id, bribeTokens, candidates, previousPeriod, previousPeriod);
+        assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 5e18);  // Receive entire bribe.
+        assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, previousPeriod));
+
+        // Attempting a second claim is a no-op
+        balBefore = bribeAsset.balanceOf(address(this));
+        election.claimBribes(id, bribeTokens, candidates, previousPeriod, previousPeriod);
+        assertEq(bribeAsset.balanceOf(address(this)), balBefore);
+    }
+
     function _warpToNextVotePeriodStart() internal {
         vm.warp(block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD);
     }

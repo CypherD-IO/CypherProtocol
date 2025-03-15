@@ -15,6 +15,10 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     uint256 private constant VOTE_PERIOD = 2 weeks;
     uint256 private constant MAX_LOCK_DURATION = 2 * 52 weeks;
 
+    // --- Immutables ---
+
+    uint256 private immutable INITIAL_PERIOD_START;
+
     // --- Storage ---
 
     IVotingEscrow public ve;
@@ -27,14 +31,16 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         public votesByTokenForCandidateInPeriod;
     mapping(address bribeToken => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 amount))) public
         amountOfBribeTokenForCandidateInPeriod;
-    mapping(
-        uint256 tokenId => mapping(address bribeToken => mapping(bytes32 candidate => uint256 lastClaimedPeriodStart))
-    ) public lastClaimByTokenOfBribeTokenForCandidate;
+
+    // Each bit of each entry in an array stored in the below mapping is used to flag whether a user has claimed for
+    // a particular period. 11 * 256 = 2816; with 2 week periods, this allows for storing over 108 years of records.
+    mapping(uint256 tokenId => mapping(address bribeToken => mapping(bytes32 candidate => uint256[11] bribeClaimRecords))) private bribeClaimRecords;
 
     // --- Constructor ---
 
     constructor(address initialOwner, address votingEscrow) Ownable(initialOwner) {
         ve = IVotingEscrow(votingEscrow);
+        INITIAL_PERIOD_START = _votingPeriodStart(block.timestamp);
     }
 
     // --- Mutations ---
@@ -131,13 +137,12 @@ contract Election is IElection, Ownable, ReentrancyGuard {
                     uint256 tokenVotes = votesByTokenForCandidateInPeriod[tokenId][candidate][period];
                     if (tokenVotes == 0) continue; // Didn't vote for candiate this period.
 
-                    uint256 lastClaim = lastClaimByTokenOfBribeTokenForCandidate[tokenId][bribeToken][candidate];
-                    if (lastClaim >= period) continue; // Already claimed.
-                    lastClaimByTokenOfBribeTokenForCandidate[tokenId][bribeToken][candidate] = period;
+                    if (_isBribeClaimed(tokenId, bribeToken, candidate, period)) continue;
 
                     // Note: precision loss here will make some dust amount of bribe tokens unclaimable.
                     uint256 amount = totalBribeAmount * tokenVotes / totalVotes;
                     owed[i] += amount;
+                    _recordBribeClaimed(tokenId, bribeToken, candidate, period);
                     emit BribeClaimed(tokenId, bribeToken, candidate, period, amount);
                 }
             }
@@ -165,6 +170,14 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         }
     }
 
+    // --- Views ---
+
+    function hasClaimedBribe(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp) external view returns (bool) {
+        uint256 periodStart = _votingPeriodStart(timestamp);
+        if (periodStart < INITIAL_PERIOD_START) revert("timestamp precedes first period");
+        return _isBribeClaimed(tokenId, bribeToken, candidate, periodStart);
+    }
+
     // --- Internals ---
 
     function _votingPeriodStart(uint256 timestamp) internal pure returns (uint256) {
@@ -175,5 +188,25 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     function _votingPeriodEnd(uint256 timestamp) internal pure returns (uint256) {
         return _votingPeriodStart(timestamp) + VOTE_PERIOD;
+    }
+
+    function _isBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart) internal view returns (bool) {
+        (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
+        uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
+        uint256 mask = 1 << bit;
+        return ((records[index] & mask) != 0);
+    }
+
+    function _recordBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart) internal {
+        (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
+        uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
+        uint256 mask = 1 << bit;
+        records[index] |= mask;
+    }
+
+    function _timeToBribeClaimCoordinates(uint256 t) internal view returns (uint256 index, uint256 bit) {
+        uint256 periodNumber = (t - INITIAL_PERIOD_START) / VOTE_PERIOD;
+        index = periodNumber / 256;
+        bit = periodNumber % 256;
     }
 }
