@@ -729,6 +729,74 @@ contract ElectionTest is Test {
         assertEq(cypher.balanceOf(address(this)) - balCypherBefore, 40_000e18);
     }
 
+    function testLongTermBribeFunctionality() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 1_000_000e18);
+        election.enableBribeToken(address(bribeAsset));
+        bribeAsset.approve(address(election), type(uint256).max);
+
+        election.enableCandidate(CANDIDATE1);
+
+        cypher.approve(address(ve), 50e18);
+        uint256 id = ve.createLock(100e18, MAX_LOCK_DURATION);
+        ve.lockIndefinite(id);
+
+        bytes32[] memory oneCandidate = new bytes32[](1);
+        oneCandidate[0] = CANDIDATE1;
+
+        uint256[] memory oneWeight = new uint256[](1);
+        oneWeight[0] = 1;
+
+        _warpToNextVotePeriodStart();
+        uint256 firstPeriod = block.timestamp;
+
+        election.addBribe(address(bribeAsset), 1_000e18, CANDIDATE1);
+        election.vote(id, oneCandidate, oneWeight);
+
+        uint256 secondPeriod = firstPeriod + 256 * VOTE_PERIOD;
+        vm.warp(secondPeriod);
+
+        election.addBribe(address(bribeAsset), 333e18, CANDIDATE1);
+        election.vote(id, oneCandidate, oneWeight);
+
+        uint256 thirdPeriod = secondPeriod + 100 * VOTE_PERIOD;
+        vm.warp(thirdPeriod);
+
+        election.addBribe(address(bribeAsset), 777e18, CANDIDATE1);
+        election.vote(id, oneCandidate, oneWeight);
+
+        uint256 fourthPeriod = thirdPeriod + 400 * VOTE_PERIOD;
+        vm.warp(fourthPeriod);
+
+        election.addBribe(address(bribeAsset), 1, CANDIDATE1);
+        election.vote(id, oneCandidate, oneWeight);
+
+        // Warp ahead one more period so that all bribes are claimable.
+        vm.warp(fourthPeriod + block.timestamp);
+
+        // Claim from first period.
+        address[] memory oneToken = new address[](1);
+        oneToken[0] = address(bribeAsset);
+        uint256 balBefore = bribeAsset.balanceOf(address(this));
+        election.claimBribes(id, oneToken, oneCandidate, firstPeriod, firstPeriod);
+        assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 1_000e18);
+
+        // Claim from first and second period (first claim will not be paid a second time).
+        balBefore = bribeAsset.balanceOf(address(this));
+        election.claimBribes(id, oneToken, oneCandidate, firstPeriod, secondPeriod);
+        assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 333e18);
+
+        // Claim from fourth.
+        balBefore = bribeAsset.balanceOf(address(this));
+        election.claimBribes(id, oneToken, oneCandidate, fourthPeriod, fourthPeriod);
+        assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 1);
+
+        // Claim first through fourth (only third has tokens left to claim).
+        balBefore = bribeAsset.balanceOf(address(this));
+        election.claimBribes(id, oneToken, oneCandidate, firstPeriod, fourthPeriod);
+        assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 777e18);
+    }
+
     function _warpToNextVotePeriodStart() internal {
         vm.warp(block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD);
     }
