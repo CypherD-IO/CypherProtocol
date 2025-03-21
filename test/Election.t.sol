@@ -13,6 +13,7 @@ contract ElectionTest is Test {
     bytes32 constant CANDIDATE2 = keccak256(hex"22222222");
     bytes32 constant CANDIDATE3 = keccak256(hex"333333");
     address constant USER1 = address(0x123456789);
+    address constant USER2 = address(0x987654321);
     uint256 private constant VOTE_PERIOD = 2 weeks;
     uint256 private constant MAX_LOCK_DURATION = 52 * 2 weeks;
 
@@ -459,6 +460,273 @@ contract ElectionTest is Test {
         balBefore = bribeAsset.balanceOf(address(this));
         election.claimBribes(id, bribeTokens, candidates, previousPeriod, previousPeriod);
         assertEq(bribeAsset.balanceOf(address(this)), balBefore);
+    }
+
+    // Multiple voters, multiple bribe assets, multiple candidates, multiple periods.
+    // Interleaving of action times.
+    function testClaimBribesComplex() public {
+        // === Bribe token setup ===
+
+        TestToken bribeAsset1 = new TestToken();
+        bribeAsset1.mint(address(this), 1_000_000e18);
+        election.enableBribeToken(address(bribeAsset1));
+        bribeAsset1.approve(address(election), type(uint256).max);
+
+        TestToken bribeAsset2 = new TestToken();
+        bribeAsset2.mint(address(this), 1_000_000e18);
+        election.enableBribeToken(address(bribeAsset2));
+        bribeAsset2.approve(address(election), type(uint256).max);
+
+        // === Candidate setup ===
+
+        election.enableCandidate(CANDIDATE1);
+        election.enableCandidate(CANDIDATE2);
+        election.enableCandidate(CANDIDATE3);
+
+        // === Voting position setup ===
+
+        // USER1 creates a ve position
+        cypher.transfer(USER1, 30e18);
+        vm.startPrank(USER1);
+        cypher.approve(address(ve), 30e18);
+        uint256 user1TokenId = ve.createLock(30e18, MAX_LOCK_DURATION);
+        ve.lockIndefinite(user1TokenId);
+        vm.stopPrank();
+
+        // USER2 creates a ve position
+        cypher.transfer(USER2, 20e18);
+        vm.startPrank(USER2);
+        cypher.approve(address(ve), 20e18);
+        uint256 user2TokenId = ve.createLock(20e18, MAX_LOCK_DURATION);
+        ve.lockIndefinite(user2TokenId);
+        vm.stopPrank();
+
+        // The test contract also creates a ve position
+        cypher.approve(address(ve), 50e18);
+        uint256 testContractTokenId = ve.createLock(50e18, MAX_LOCK_DURATION);
+        ve.lockIndefinite(testContractTokenId);
+
+        // Working with a cached timestamp to avoid spurious errors due to the optimizer.
+        uint256 firstPeriodStart = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
+
+        // === First vote period ===
+
+        vm.warp(firstPeriodStart);
+
+        bytes32[] memory twoCandidates = new bytes32[](2);
+        uint256[] memory twoWeights = new uint256[](2);
+
+        vm.startPrank(USER1);
+        twoCandidates[0] = CANDIDATE1;
+        twoCandidates[1] = CANDIDATE2;
+        twoWeights[0] = 2;
+        twoWeights[1] = 1;
+        election.vote(user1TokenId, twoCandidates, twoWeights);
+        vm.stopPrank();
+
+        vm.warp(firstPeriodStart + 1 hours);
+
+        // First bribe dropped for CANDIDATE1 in bribeAsset1
+        election.addBribe(address(bribeAsset1), 3_000e18, CANDIDATE1);
+
+        vm.warp(firstPeriodStart + 2 hours);
+
+        vm.startPrank(USER2);
+        twoCandidates[0] = CANDIDATE1;
+        twoCandidates[1] = CANDIDATE3;
+        twoWeights[0] = 1;
+        twoWeights[1] = 1;
+        election.vote(user2TokenId, twoCandidates, twoWeights);
+        vm.stopPrank();
+
+        vm.warp(firstPeriodStart + 3 hours);
+
+        // Second bribe dropped for CANDIDATE3 in bribeAsset2
+        election.addBribe(address(bribeAsset2), 1_000e18, CANDIDATE3);
+
+        vm.warp(firstPeriodStart + 4 hours);
+
+        bytes32[] memory oneCandidate = new bytes32[](1);
+        uint256[] memory oneWeight = new uint256[](1);
+
+        // The test contract votes for CANDIDATE2
+        oneCandidate[0] = CANDIDATE2;
+        oneWeight[0] = 100;
+        election.vote(testContractTokenId, oneCandidate, oneWeight);
+
+        // Expected bribe allotments from this period:
+        // USER1: 2_000e18 of bribeToken1
+        // USER2: 1_000e18 of bribeToken1 and 1_000e18 of bribeToken2
+        // testContract: no bribe earnings
+
+        // === Second vote period ===
+
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        // First bribe is dropped for CANDIDATE1 in bribeToken1
+        election.addBribe(address(bribeAsset1), 5_000e18, CANDIDATE1);
+
+        vm.warp(secondPeriodStart + 1 hours);
+
+        vm.startPrank(USER1);
+        oneCandidate[0] = CANDIDATE1;
+        oneWeight[0] = 333;
+        election.vote(user1TokenId, oneCandidate, oneWeight);
+        vm.stopPrank();
+
+        vm.warp(secondPeriodStart + 2 hours);
+
+        // Second bribe is dropped for CANDIDATE1 in bribeToken2
+        election.addBribe(address(bribeAsset2), 10_000e18, CANDIDATE1);
+
+        vm.warp(secondPeriodStart + 3 hours);
+
+        vm.startPrank(USER2);
+        twoCandidates[0] = CANDIDATE1;
+        twoCandidates[1] = CANDIDATE2;
+        twoWeights[0] = 1;
+        twoWeights[1] = 1;
+        election.vote(user2TokenId, twoCandidates, twoWeights);
+        vm.stopPrank();
+
+        vm.warp(secondPeriodStart + 4 hours);
+
+        // Third bribe is dropped for CANDIDATE3 in bribeToken1
+        election.addBribe(address(bribeAsset1), 7_000e18, CANDIDATE3);
+
+        vm.warp(block.timestamp + 5 hours);
+
+        // The test contract votes 80% for CANDIDATE3 and 20% for CANDIDATE1
+        twoCandidates[0] = CANDIDATE3;
+        twoCandidates[1] = CANDIDATE1;
+        twoWeights[0] = 80;
+        twoWeights[1] = 20;
+        election.vote(testContractTokenId, twoCandidates, twoWeights);
+
+        // Expected bribe allotments from this period:
+        // USER1: 3_000e18 of bribeToken1 and 6_000e18 of bribeToken2
+        // USER2: 1_000e18 of bribeToken1 and 2_000e18 of bribeToken2
+        // testContract: 8_000e18 of bribeToken1 and 2_000e18 of bribeToken2
+
+        // === Third vote period ===
+
+        uint256 thirdPeriodStart = secondPeriodStart + VOTE_PERIOD;
+        vm.warp(thirdPeriodStart);
+
+        // USER2 claims their bribes from the second period
+        uint256 bal1Before = bribeAsset1.balanceOf(USER2);
+        uint256 bal2Before = bribeAsset2.balanceOf(USER2);
+        address[] memory twoTokens = new address[](2);
+        twoTokens[0] = address(bribeAsset1);
+        twoTokens[1] = address(bribeAsset2);
+        twoCandidates[0] = CANDIDATE1;
+        twoCandidates[1] = CANDIDATE2;
+        vm.startPrank(USER2);
+        election.claimBribes(user2TokenId, twoTokens, twoCandidates, secondPeriodStart, secondPeriodStart);
+        vm.stopPrank();
+        assertEq(bribeAsset1.balanceOf(USER2) - bal1Before, 1_000e18);
+        assertEq(bribeAsset2.balanceOf(USER2) - bal2Before, 2_000e18);
+
+        vm.warp(thirdPeriodStart + 1 hours);
+
+        // First bribe is dropped for CANDIDATE1 in bribeToken1
+        election.addBribe(address(bribeAsset1), 10_000e18, CANDIDATE1);
+
+        // Second bribe is dropped for CANDIDATE2 in bribeToken2
+        election.addBribe(address(bribeAsset2), 30_000e18, CANDIDATE2);
+
+        // Surprise! Add the Cypher token itself as a bribe asset.
+        election.enableBribeToken(address(cypher));
+        cypher.approve(address(election), type(uint256).max);
+
+        // Third bribe is dropped for CANDIDATE3 in Cypher tokens.
+        election.addBribe(address(cypher), 60_000e18, CANDIDATE3);
+
+        vm.warp(thirdPeriodStart + 2 hours);
+
+        vm.startPrank(USER1);
+        bytes32[] memory threeCandidates = new bytes32[](3);
+        threeCandidates[0] = CANDIDATE1;
+        threeCandidates[1] = CANDIDATE2;
+        threeCandidates[2] = CANDIDATE3;
+        uint256[] memory threeWeights = new uint256[](3);
+        threeWeights[0] = 1;
+        threeWeights[1] = 1;
+        threeWeights[2] = 1;
+        election.vote(user1TokenId, threeCandidates, threeWeights);
+        vm.stopPrank();
+
+        vm.startPrank(USER2);
+        twoCandidates[0] = CANDIDATE2;
+        twoCandidates[1] = CANDIDATE3;
+        twoWeights[0] = 50;
+        twoWeights[1] = 50;
+        election.vote(user2TokenId, twoCandidates, twoWeights);
+        vm.stopPrank();
+
+        twoCandidates[0] = CANDIDATE2;
+        twoCandidates[1] = CANDIDATE3;
+        twoWeights[0] = 10;
+        twoWeights[1] = 40;
+        election.vote(testContractTokenId, twoCandidates, twoWeights);
+
+        // Expected bribe allotments from this period:
+        // USER1: 10_000e18 of bribeToken1, 10_000e18 of bribeToken2, 10_000e18 CYPR
+        // USER2: 10_000e18 of bribeToken2 and 10_000e18 CYPR
+        // testContract: 10_000e18 of bribeToken2 and 40_000e18 of CYPR
+
+        // === Fourth vote period ===
+        // Just test claims here.
+
+        vm.warp(thirdPeriodStart + VOTE_PERIOD);
+
+        // First up: USER1 claims everything in one go.
+        bal1Before = bribeAsset1.balanceOf(USER1);
+        bal2Before = bribeAsset2.balanceOf(USER1);
+        uint256 balCypherBefore = cypher.balanceOf(USER1);
+        address[] memory threeTokens = new address[](3);
+        threeTokens[0] = address(bribeAsset1);
+        threeTokens[1] = address(bribeAsset2);
+        threeTokens[2] = address(cypher);
+        vm.startPrank(USER1);
+        election.claimBribes(user1TokenId, threeTokens, threeCandidates, firstPeriodStart, thirdPeriodStart);
+        vm.stopPrank();
+        assertEq(bribeAsset1.balanceOf(USER1) - bal1Before, 15_000e18);
+        assertEq(bribeAsset2.balanceOf(USER1) - bal2Before, 16_000e18);
+        assertEq(cypher.balanceOf(USER1) - balCypherBefore, 10_000e18);
+
+        // Check that USER1 attempting to claim again is a no-op
+        bal1Before = bribeAsset1.balanceOf(USER1);
+        bal2Before = bribeAsset2.balanceOf(USER1);
+        balCypherBefore = cypher.balanceOf(USER1);
+        vm.startPrank(USER1);
+        election.claimBribes(user1TokenId, threeTokens, threeCandidates, firstPeriodStart, thirdPeriodStart);
+        vm.stopPrank();
+        assertEq(bribeAsset1.balanceOf(USER1), bal1Before);
+        assertEq(bribeAsset2.balanceOf(USER1), bal2Before);
+        assertEq(cypher.balanceOf(USER1), balCypherBefore);
+
+        // Next up: USER2 claims everything, including their balances for the fist round they forgot about.
+        // Note that their second round was already claimed!
+        bal1Before = bribeAsset1.balanceOf(USER2);
+        bal2Before = bribeAsset2.balanceOf(USER2);
+        balCypherBefore = cypher.balanceOf(USER2);
+        vm.startPrank(USER2);
+        election.claimBribes(user2TokenId, threeTokens, threeCandidates, firstPeriodStart, thirdPeriodStart);
+        vm.stopPrank();
+        assertEq(bribeAsset1.balanceOf(USER2) - bal1Before, 1_000e18);
+        assertEq(bribeAsset2.balanceOf(USER2) - bal2Before, 11_000e18);
+        assertEq(cypher.balanceOf(USER2) - balCypherBefore, 10_000e18);
+
+        // The test contract claims for all three periods despite only earning in the 2nd and 3rd.
+        bal1Before = bribeAsset1.balanceOf(address(this));
+        bal2Before = bribeAsset2.balanceOf(address(this));
+        balCypherBefore = cypher.balanceOf(address(this));
+        election.claimBribes(testContractTokenId, threeTokens, threeCandidates, firstPeriodStart, thirdPeriodStart);
+        assertEq(bribeAsset1.balanceOf(address(this)) - bal1Before, 8_000e18);
+        assertEq(bribeAsset2.balanceOf(address(this)) - bal2Before, 12_000e18);
+        assertEq(cypher.balanceOf(address(this)) - balCypherBefore, 40_000e18);
     }
 
     function _warpToNextVotePeriodStart() internal {
