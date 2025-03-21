@@ -212,10 +212,18 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     {
         (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
         uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
+
+        // Set the bit at the bribe claim coordiantes to 1, marking the bribe as claimed for the
+        // corresponding 4-tuple of (tokenId, bribeToken, candidate, periodStart).
         uint256 mask = 1 << bit;
         records[index] |= mask;
     }
 
+    /// @dev This function maps a current timestamp to a bit in an array of uint256 integers. The `index`
+    ///      return value is an index into the array; the `bit` return value is the bit position with that
+    ///      uint256. The zeroeth bit of the zeroeth entry corresponds to the first vote period, the
+    ///      1-indexed bit the second vote period, and so on. The zeroeth bit of the 1-indexed uint256 is
+    ///      the 257th vote period.
     function _timeToBribeClaimCoordinates(uint256 t) internal view returns (uint256 index, uint256 bit) {
         uint256 periodNumber = (t - INITIAL_PERIOD_START) / VOTE_PERIOD;
         index = periodNumber / 256;
