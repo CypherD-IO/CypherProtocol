@@ -737,7 +737,7 @@ contract ElectionTest is Test {
 
         election.enableCandidate(CANDIDATE1);
 
-        cypher.approve(address(ve), 50e18);
+        cypher.approve(address(ve), 100e18);
         uint256 id = ve.createLock(100e18, MAX_LOCK_DURATION);
         ve.lockIndefinite(id);
 
@@ -747,8 +747,9 @@ contract ElectionTest is Test {
         uint256[] memory oneWeight = new uint256[](1);
         oneWeight[0] = 1;
 
-        _warpToNextVotePeriodStart();
-        uint256 firstPeriod = block.timestamp;
+        // Working with a cached timestamp to avoid spurious errors due to the optimizer.
+        uint256 firstPeriod = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
+        vm.warp(firstPeriod);
 
         election.addBribe(address(bribeAsset), 1_000e18, CANDIDATE1);
         election.vote(id, oneCandidate, oneWeight);
@@ -772,7 +773,7 @@ contract ElectionTest is Test {
         election.vote(id, oneCandidate, oneWeight);
 
         // Warp ahead one more period so that all bribes are claimable.
-        vm.warp(fourthPeriod + block.timestamp);
+        vm.warp(fourthPeriod + VOTE_PERIOD);
 
         // Claim from first period.
         address[] memory oneToken = new address[](1);
