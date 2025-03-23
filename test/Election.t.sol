@@ -795,6 +795,16 @@ contract ElectionTest is Test {
         assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 777e18);
     }
 
+    function testClaimBribesAuthorized() public {}
+
+    function testClaimBribesUnauthorized() public {}
+
+    function testClaimBribesNonreentrant() public {}
+
+    function testClaimBribesCurrentPeriod() public {}
+
+    function testClaimBribesFuturePeriod() public {}
+
     function _warpToNextVotePeriodStart() internal returns (uint256 firstPeriodStart) {
         firstPeriodStart = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
         vm.warp(firstPeriodStart);
