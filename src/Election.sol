@@ -223,10 +223,27 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     ///      return value is an index into the array; the `bit` return value is the bit position with that
     ///      uint256. The zeroeth bit of the zeroeth entry corresponds to the first vote period, the
     ///      1-indexed bit the second vote period, and so on. The zeroeth bit of the 1-indexed uint256 is
-    ///      the 257th vote period.
+    ///      the 257th vote period. Examples:
+    ///
+    ///      Suppose the initial vote period starts at time T (an even multiple of VOTE_PERIOD).
+    ///      A timestamp that is during the third vote period will be of the form:
+    ///      t_3 = T + 2 * VOTE_PERIOD + m      (where 0 <= m < VOTE_PERIOD)
+    ///      The bribe claim coordinates for t_3 are computed as:
+    ///      periodIndex = (t_3 - T) / VOTE_PERIOD = (2 * VOTE_PERIOD + m) / VOTE_PERIOD = 2
+    ///      index = periodIndex / 256 = 2 / 256 = 0
+    ///      bit = periodIndex % 256 = 2 % 256 = 2
+    ///      I.e. the coordinates are (0, 2)--the third bit (zero-indexed) of the first uint256 in the array of bribe claim records.
+    ///
+    ///      A timestamp during the 1,444th vote period will be of the form:
+    ///      t_1444 = T + 1443 * VOTE_PERIOD + m       (where 0 <= m < VOTE_PERIOD)
+    ///      The bribe claim coordinates for t_1444 are computed as:
+    ///      periodIndex = (t_1444 - T) / VOTE_PERIOD = (1443 * VOTE_PERIOD + m) / VOTE_PERIOD = 1443
+    ///      index = periodIndex / 256 = 1,443 / 256 = 5
+    ///      bit = periodIndex % 256 = 1,443 % 256 = 163
+    ///      I.e. the coordinates are (5, 163)--the 164th bit (zero-indexed) of the fifth uint256 in the array of bribe claim records.
     function _timeToBribeClaimCoordinates(uint256 t) internal view returns (uint256 index, uint256 bit) {
-        uint256 periodNumber = (t - INITIAL_PERIOD_START) / VOTE_PERIOD;
-        index = periodNumber / 256;
+        uint256 periodIndex = (t - INITIAL_PERIOD_START) / VOTE_PERIOD;
+        index = periodIndex / 256;
         bit = periodNumber % 256;
     }
 }
