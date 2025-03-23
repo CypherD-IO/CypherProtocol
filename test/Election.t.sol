@@ -506,12 +506,10 @@ contract ElectionTest is Test {
         uint256 testContractTokenId = ve.createLock(50e18, MAX_LOCK_DURATION);
         ve.lockIndefinite(testContractTokenId);
 
-        // Working with a cached timestamp to avoid spurious errors due to the optimizer.
-        uint256 firstPeriodStart = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
-
         // === First vote period ===
 
-        vm.warp(firstPeriodStart);
+        // Working with a cached timestamp to avoid spurious errors due to the optimizer.
+        uint256 firstPeriodStart = _warpToNextVotePeriodStart();
 
         bytes32[] memory twoCandidates = new bytes32[](2);
         uint256[] memory twoWeights = new uint256[](2);
@@ -748,8 +746,7 @@ contract ElectionTest is Test {
         oneWeight[0] = 1;
 
         // Working with a cached timestamp to avoid spurious errors due to the optimizer.
-        uint256 firstPeriod = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
-        vm.warp(firstPeriod);
+        uint256 firstPeriod = _warpToNextVotePeriodStart();
 
         election.addBribe(address(bribeAsset), 1_000e18, CANDIDATE1);
         election.vote(id, oneCandidate, oneWeight);
@@ -798,8 +795,9 @@ contract ElectionTest is Test {
         assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 777e18);
     }
 
-    function _warpToNextVotePeriodStart() internal {
-        vm.warp(block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD);
+    function _warpToNextVotePeriodStart() internal returns (uint256 firstPeriodStart) {
+        firstPeriodStart = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
+        vm.warp(firstPeriodStart);
     }
 
     function _periodStart(uint256 t) internal pure returns (uint256) {

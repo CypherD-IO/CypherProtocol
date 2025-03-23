@@ -244,6 +244,6 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     function _timeToBribeClaimCoordinates(uint256 t) internal view returns (uint256 index, uint256 bit) {
         uint256 periodIndex = (t - INITIAL_PERIOD_START) / VOTE_PERIOD;
         index = periodIndex / 256;
-        bit = periodNumber % 256;
+        bit = periodIndex % 256;
     }
 }
