@@ -3,10 +3,37 @@ pragma solidity 0.8.28;
 import "forge-std/Test.sol";
 
 import {IElection} from "../src/interfaces/IElection.sol";
+
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
 import {CypherToken} from "../src/CypherToken.sol";
 import {Election} from "../src/Election.sol";
 import {VotingEscrow} from "../src/VotingEscrow.sol";
 import {TestToken} from "./mocks/TestToken.sol";
+
+contract ReenteringToken is TestToken {
+    address target;
+    bytes data;
+    function setCall(address _target, bytes memory _data) external {
+        target = _target;
+        data = _data;
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        if (target != address(0)) {
+            (bool ok, bytes memory err) = target.call{value: 0}(data);
+            if (!ok) {
+                uint256 len = err.length;
+                assembly ("memory-safe") {
+                    revert(add(err, 0x20), len)
+                }
+            }
+            target = address(0);
+        }
+
+        super._update(from, to, value);
+    }
+}
 
 contract ElectionTest is Test {
     bytes32 constant CANDIDATE1 = keccak256(hex"f833a28e");
@@ -865,7 +892,45 @@ contract ElectionTest is Test {
         vm.stopPrank();
     }
 
-    function testClaimBribesNonreentrant() public {}
+    function testClaimBribesNonreentrant() public {
+        ReenteringToken bribeAsset = new ReenteringToken();
+        bribeAsset.mint(address(this), 1e18);
+
+        cypher.approve(address(ve), 1e18);
+        uint256 id = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        uint256 period = _warpToNextVotePeriodStart();
+
+        election.enableCandidate(CANDIDATE1);
+
+        election.enableBribeToken(address(bribeAsset));
+        bribeAsset.approve(address(election), 1e18);
+        election.addBribe(address(bribeAsset), 1e18, CANDIDATE1);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+        election.vote(id, candidates, weights);
+
+        _warpToNextVotePeriodStart();
+        address[] memory bribeTokens = new address[](1);
+        bribeTokens[0] = address(bribeAsset);
+
+        ve.approve(address(bribeAsset), id);
+
+        bytes memory data = abi.encodeWithSelector(IElection.claimBribes.selector, id, bribeTokens, candidates, period, period);
+        bribeAsset.setCall(address(election), data);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        election.claimBribes(id, bribeTokens, candidates, period, period);
+
+        data = abi.encodeWithSelector(IElection.vote.selector, id, candidates, weights);
+        bribeAsset.setCall(address(election), data);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        election.claimBribes(id, bribeTokens, candidates, period, period);
+    }
 
     function testClaimBribesCurrentPeriod() public {}
 
