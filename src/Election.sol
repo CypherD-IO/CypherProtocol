@@ -114,7 +114,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         uint256 from,
         uint256 until
     ) external nonReentrant {
-        if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedForVoting();
+        if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedToClaimBribesFor(tokenId);
 
         uint256 firstPeriod = _votingPeriodStart(from);
         uint256 lastPeriod = _votingPeriodStart(until);

@@ -795,9 +795,75 @@ contract ElectionTest is Test {
         assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 777e18);
     }
 
-    function testClaimBribesAuthorized() public {}
+    function testClaimBribesAuthorized() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 1e18);
 
-    function testClaimBribesUnauthorized() public {}
+        cypher.approve(address(ve), 1e18);
+        uint256 id = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        uint256 period = _warpToNextVotePeriodStart();
+
+        election.enableCandidate(CANDIDATE1);
+
+        election.enableBribeToken(address(bribeAsset));
+        bribeAsset.approve(address(election), 1e18);
+        election.addBribe(address(bribeAsset), 1e18, CANDIDATE1);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+        election.vote(id, candidates, weights);
+
+        _warpToNextVotePeriodStart();
+        address[] memory bribeTokens = new address[](1);
+        bribeTokens[0] = address(bribeAsset);
+
+        uint256 balThisBefore = bribeAsset.balanceOf(address(this));
+        uint256 balUser1Before = bribeAsset.balanceOf(USER1);
+
+        ve.approve(USER1, id);
+
+        vm.startPrank(address(USER1));
+        election.claimBribes(id, bribeTokens, candidates, period, period);
+        vm.stopPrank();
+
+        assertEq(bribeAsset.balanceOf(address(this)) - balThisBefore, 0); // Bribes do not go to token owner.
+        assertEq(bribeAsset.balanceOf(USER1) - balUser1Before, 1e18); // Bribes go to claimant.
+        assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, period));
+    }
+
+    function testClaimBribesUnauthorized() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 1e18);
+
+        cypher.approve(address(ve), 1e18);
+        uint256 id = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        uint256 period = _warpToNextVotePeriodStart();
+
+        election.enableCandidate(CANDIDATE1);
+
+        election.enableBribeToken(address(bribeAsset));
+        bribeAsset.approve(address(election), 1e18);
+        election.addBribe(address(bribeAsset), 1e18, CANDIDATE1);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+        election.vote(id, candidates, weights);
+
+        _warpToNextVotePeriodStart();
+        address[] memory bribeTokens = new address[](1);
+        bribeTokens[0] = address(bribeAsset);
+
+        vm.startPrank(address(USER1));
+        vm.expectRevert(abi.encodeWithSelector(IElection.NotAuthorizedToClaimBribesFor.selector, id));
+        election.claimBribes(id, bribeTokens, candidates, period, period);
+        vm.stopPrank();
+    }
 
     function testClaimBribesNonreentrant() public {}
 
