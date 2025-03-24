@@ -458,7 +458,7 @@ contract ElectionTest is Test {
         cypher.approve(address(ve), 10e18);
         uint256 id = ve.createLock(10e18, MAX_LOCK_DURATION);
 
-        _warpToNextVotePeriodStart();
+        uint256 periodToClaim = _warpToNextVotePeriodStart();
 
         election.enableCandidate(CANDIDATE1);
 
@@ -475,18 +475,17 @@ contract ElectionTest is Test {
         election.vote(id, candidates, weights);
 
         _warpToNextVotePeriodStart();
-        uint256 previousPeriod = block.timestamp - VOTE_PERIOD;
         address[] memory bribeTokens = new address[](1);
         bribeTokens[0] = address(bribeAsset);
 
         uint256 balBefore = bribeAsset.balanceOf(address(this));
-        election.claimBribes(id, bribeTokens, candidates, previousPeriod, previousPeriod);
+        election.claimBribes(id, bribeTokens, candidates, periodToClaim, periodToClaim);
         assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 5e18); // Receive entire bribe.
-        assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, previousPeriod));
+        assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, periodToClaim));
 
         // Attempting a second claim is a no-op
         balBefore = bribeAsset.balanceOf(address(this));
-        election.claimBribes(id, bribeTokens, candidates, previousPeriod, previousPeriod);
+        election.claimBribes(id, bribeTokens, candidates, periodToClaim, periodToClaim);
         assertEq(bribeAsset.balanceOf(address(this)), balBefore);
     }
 
@@ -934,13 +933,43 @@ contract ElectionTest is Test {
         election.claimBribes(id, bribeTokens, candidates, period, period);
     }
 
-    function testClaimBribesCurrentPeriod() public {}
+    function testClaimBribesCurrentOrFuturePeriod() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 1e18);
 
-    function testClaimBribesFuturePeriod() public {}
+        cypher.approve(address(ve), 10e18);
+        uint256 id = ve.createLock(10e18, MAX_LOCK_DURATION);
 
-    function _warpToNextVotePeriodStart() internal returns (uint256 firstPeriodStart) {
-        firstPeriodStart = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
-        vm.warp(firstPeriodStart);
+        uint256 period = _warpToNextVotePeriodStart();
+
+        election.enableCandidate(CANDIDATE1);
+
+        election.enableBribeToken(address(bribeAsset));
+        bribeAsset.approve(address(election), 1e18);
+        emit IElection.BribeAdded(address(bribeAsset), CANDIDATE1, block.timestamp, 1e18);
+        election.addBribe(address(bribeAsset), 1e18, CANDIDATE1);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+        election.vote(id, candidates, weights);
+
+        address[] memory bribeTokens = new address[](1);
+        bribeTokens[0] = address(bribeAsset);
+
+        vm.expectRevert(IElection.CanOnlyClaimBribesForPastPeriods.selector);
+        election.claimBribes(id, bribeTokens, candidates, period, period);
+
+        vm.warp(period + VOTE_PERIOD);
+
+        vm.expectRevert(IElection.CanOnlyClaimBribesForPastPeriods.selector);
+        election.claimBribes(id, bribeTokens, candidates, period, period + 22 * VOTE_PERIOD);
+    }
+
+    function _warpToNextVotePeriodStart() internal returns (uint256 nextPeriodStart) {
+        nextPeriodStart = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
+        vm.warp(nextPeriodStart);
     }
 
     function _periodStart(uint256 t) internal pure returns (uint256) {
