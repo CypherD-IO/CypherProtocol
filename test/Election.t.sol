@@ -14,6 +14,7 @@ import {TestToken} from "./mocks/TestToken.sol";
 contract ReenteringToken is TestToken {
     address target;
     bytes data;
+
     function setCall(address _target, bytes memory _data) external {
         target = _target;
         data = _data;
@@ -919,7 +920,8 @@ contract ElectionTest is Test {
 
         ve.approve(address(bribeAsset), id);
 
-        bytes memory data = abi.encodeWithSelector(IElection.claimBribes.selector, id, bribeTokens, candidates, period, period);
+        bytes memory data =
+            abi.encodeWithSelector(IElection.claimBribes.selector, id, bribeTokens, candidates, period, period);
         bribeAsset.setCall(address(election), data);
 
         vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
