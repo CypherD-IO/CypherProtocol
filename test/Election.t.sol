@@ -351,7 +351,7 @@ contract ElectionTest is Test {
         uint256[] memory weights = new uint256[](1);
         weights[0] = 0;
 
-        vm.expectRevert();
+        vm.expectRevert(stdError.divisionError);
         election.vote(id, candidates, weights);
     }
 
