@@ -11,31 +11,7 @@ import {CypherToken} from "../src/CypherToken.sol";
 import {Election} from "../src/Election.sol";
 import {VotingEscrow} from "../src/VotingEscrow.sol";
 import {TestToken} from "./mocks/TestToken.sol";
-
-contract ReenteringToken is TestToken {
-    address target;
-    bytes data;
-
-    function setCall(address _target, bytes memory _data) external {
-        target = _target;
-        data = _data;
-    }
-
-    function _update(address from, address to, uint256 value) internal override {
-        if (target != address(0)) {
-            (bool ok, bytes memory err) = target.call{value: 0}(data);
-            if (!ok) {
-                uint256 len = err.length;
-                assembly ("memory-safe") {
-                    revert(add(err, 0x20), len)
-                }
-            }
-            target = address(0);
-        }
-
-        super._update(from, to, value);
-    }
-}
+import {ReenteringToken} from "./mocks/ReenteringToken.sol";
 
 contract ElectionTest is Test {
     bytes32 constant CANDIDATE1 = keccak256(hex"f833a28e");
