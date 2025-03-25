@@ -192,10 +192,6 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         }
     }
 
-    function _votingPeriodEnd(uint256 timestamp) internal pure returns (uint256) {
-        return _votingPeriodStart(timestamp) + VOTE_PERIOD;
-    }
-
     function _isBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart)
         internal
         view
