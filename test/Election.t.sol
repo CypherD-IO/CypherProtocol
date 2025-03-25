@@ -225,7 +225,7 @@ contract ElectionTest is Test {
     function testVoteAuthorization() public {
         cypher.approve(address(ve), 4e18);
         uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
-        _warpToNextVotePeriodStart();
+        uint256 periodStart = _warpToNextVotePeriodStart();
 
         // Approve USER1 to vote for our account.
         ve.approve(USER1, id);
@@ -236,14 +236,17 @@ contract ElectionTest is Test {
         uint256[] memory weights = new uint256[](1);
         weights[0] = 1e18;
 
+        uint256 power = ve.balanceOfAt(id, periodStart);
         vm.expectEmit(true, true, true, true);
         // The owner of the id, not the caller of vote(), is emitted.
-        emit IElection.Vote(id, address(this), candidates[0], block.timestamp, ve.balanceOfAt(id, block.timestamp));
+        emit IElection.Vote(id, address(this), candidates[0], periodStart, power);
         vm.prank(USER1);
         election.vote(id, candidates, weights);
 
         // Just a basic check that the vote was processed correctly.
         assertEq(election.lastVoteTime(id), block.timestamp);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, periodStart), power);
+        assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, periodStart), power);
     }
 
     function testVoteUnauthorized() public {
