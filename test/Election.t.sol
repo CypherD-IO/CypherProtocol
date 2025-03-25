@@ -805,21 +805,25 @@ contract ElectionTest is Test {
         uint256 balBefore = bribeAsset.balanceOf(address(this));
         election.claimBribes(id, oneToken, oneCandidate, firstPeriod, firstPeriod);
         assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 1_000e18);
+        assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, firstPeriod));
 
         // Claim from first and second period (first claim will not be paid a second time).
         balBefore = bribeAsset.balanceOf(address(this));
         election.claimBribes(id, oneToken, oneCandidate, firstPeriod, secondPeriod);
         assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 333e18);
+        assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, secondPeriod));
 
         // Claim from fourth.
         balBefore = bribeAsset.balanceOf(address(this));
         election.claimBribes(id, oneToken, oneCandidate, fourthPeriod, fourthPeriod);
         assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 1);
+        assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, fourthPeriod));
 
         // Claim first through fourth (only third has tokens left to claim).
         balBefore = bribeAsset.balanceOf(address(this));
         election.claimBribes(id, oneToken, oneCandidate, firstPeriod, fourthPeriod);
         assertEq(bribeAsset.balanceOf(address(this)) - balBefore, 777e18);
+        assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, thirdPeriod));
     }
 
     function testClaimBribesAuthorized() public {
