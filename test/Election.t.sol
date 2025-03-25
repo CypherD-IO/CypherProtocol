@@ -443,6 +443,20 @@ contract ElectionTest is Test {
         bribeAsset.mint(address(this), 100e18);
 
         election.enableBribeToken(address(bribeAsset));
+        election.enableCandidate(CANDIDATE1);
+
+        _warpToNextVotePeriodStart();
+
+        bribeAsset.approve(address(election), 5e18);
+        vm.expectRevert(IElection.ZeroAmount.selector);
+        election.addBribe(address(bribeAsset), 0, CANDIDATE1);
+    }
+
+    function testAddBribeZeroAmount() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 100e18);
+
+        election.enableBribeToken(address(bribeAsset));
 
         _warpToNextVotePeriodStart();
 

@@ -37,6 +37,7 @@ interface IElection {
     error CanOnlyClaimBribesForPastPeriods();
     error InvalidBribeToken();
     error NotAuthorizedToClaimBribesFor(uint256 tokenId);
+    error ZeroAmount();
 
     // --- Mutations ---
 

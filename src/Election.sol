@@ -161,14 +161,13 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     function addBribe(address bribeToken, uint256 amount, bytes32 candidate) external nonReentrant {
         if (!isBribeToken[bribeToken]) revert InvalidBribeToken();
         if (!isCandidate[candidate]) revert InvalidCandidate();
-        if (amount > 0) {
-            uint256 periodStart = _votingPeriodStart(block.timestamp);
-            amountOfBribeTokenForCandidateInPeriod[bribeToken][candidate][periodStart] += amount;
+        if (amount == 0) revert ZeroAmount();
+        uint256 periodStart = _votingPeriodStart(block.timestamp);
+        amountOfBribeTokenForCandidateInPeriod[bribeToken][candidate][periodStart] += amount;
 
-            // Note: fee-on-transfer not currently supported.
-            IERC20(bribeToken).safeTransferFrom(msg.sender, address(this), amount);
-            emit BribeAdded(bribeToken, candidate, periodStart, amount);
-        }
+        // Note: fee-on-transfer not currently supported.
+        IERC20(bribeToken).safeTransferFrom(msg.sender, address(this), amount);
+        emit BribeAdded(bribeToken, candidate, periodStart, amount);
     }
 
     // --- Views ---
