@@ -355,11 +355,12 @@ contract ElectionTest is Test {
         election.vote(id, candidates, weights);
     }
 
-    function testVoteWeightOverflow() public {
+    function testVoteWeightOverflowSum() public {
         _warpToNextVotePeriodStart();
 
-        cypher.approve(address(ve), 333e18);
-        uint256 id = ve.createLock(333e18, MAX_LOCK_DURATION);
+        cypher.approve(address(ve), 1);
+        uint256 id = ve.createLock(1, MAX_LOCK_DURATION);
+        ve.lockIndefinite(id);
 
         bytes32[] memory candidates = new bytes32[](2);
         candidates[0] = CANDIDATE1;
@@ -370,7 +371,24 @@ contract ElectionTest is Test {
         weights[0] = type(uint256).max;
         weights[1] = type(uint256).max;
 
-        vm.expectRevert();
+        vm.expectRevert(stdError.arithmeticError);
+        election.vote(id, candidates, weights);
+    }
+
+    function testVoteWeightOverflowMultiplication() public {
+        _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), 2);
+        uint256 id = ve.createLock(2, MAX_LOCK_DURATION);
+        ve.lockIndefinite(id);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = type(uint256).max;
+
+        vm.expectRevert(stdError.arithmeticError);
         election.vote(id, candidates, weights);
     }
 
