@@ -620,7 +620,7 @@ contract ElectionTest is Test {
         // Third bribe is dropped for CANDIDATE3 in bribeToken1
         election.addBribe(address(bribeAsset1), 7_000e18, CANDIDATE3);
 
-        vm.warp(block.timestamp + 5 hours);
+        vm.warp(secondPeriodStart + 5 hours);
 
         // The test contract votes 80% for CANDIDATE3 and 20% for CANDIDATE1
         twoCandidates[0] = CANDIDATE3;
