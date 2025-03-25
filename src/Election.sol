@@ -18,10 +18,9 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     // --- Immutables ---
 
     uint256 private immutable INITIAL_PERIOD_START;
+    IVotingEscrow public immutable ve;
 
     // --- Storage ---
-
-    IVotingEscrow public immutable ve;
 
     mapping(bytes32 candidate => bool isCandidate) public isCandidate;
     mapping(address bribeToken => bool isBribeToken) public isBribeToken;
