@@ -4,6 +4,7 @@ import "forge-std/Test.sol";
 
 import {IElection} from "../src/interfaces/IElection.sol";
 
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 import {CypherToken} from "../src/CypherToken.sol";
@@ -87,14 +88,14 @@ contract ElectionTest is Test {
         }
 
         vm.prank(notOwner);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
         election.enableCandidate(CANDIDATE1);
 
         // successfully enable
         election.enableCandidate(CANDIDATE1);
 
         vm.prank(notOwner);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
         election.disableCandidate(CANDIDATE1);
     }
 
@@ -125,14 +126,14 @@ contract ElectionTest is Test {
         address bribeTokenAddr = address(0x12341234);
 
         vm.prank(notOwner);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
         election.enableBribeToken(bribeTokenAddr);
 
         // successfully enable
         election.enableBribeToken(bribeTokenAddr);
 
         vm.prank(notOwner);
-        vm.expectRevert();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
         election.disableBribeToken(bribeTokenAddr);
     }
 
