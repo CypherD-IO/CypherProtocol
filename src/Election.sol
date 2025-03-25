@@ -185,14 +185,14 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     // --- Internals ---
 
-    function _votingPeriodStart(uint256 timestamp) internal pure returns (uint256) {
+    function _votingPeriodStart(uint256 timestamp) private pure returns (uint256) {
         unchecked {
             return (timestamp / VOTE_PERIOD) * VOTE_PERIOD;
         }
     }
 
     function _isBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart)
-        internal
+        private
         view
         returns (bool)
     {
@@ -203,7 +203,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     }
 
     function _recordBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart)
-        internal
+        private
     {
         (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
         uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
@@ -236,7 +236,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     ///      index = periodIndex / 256 = 1,443 / 256 = 5
     ///      bit = periodIndex % 256 = 1,443 % 256 = 163
     ///      I.e. the coordinates are (5, 163)--the 164th bit (zero-indexed) of the fifth uint256 in the array of bribe claim records.
-    function _timeToBribeClaimCoordinates(uint256 t) internal view returns (uint256 index, uint256 bit) {
+    function _timeToBribeClaimCoordinates(uint256 t) private view returns (uint256 index, uint256 bit) {
         uint256 periodIndex = (t - INITIAL_PERIOD_START) / VOTE_PERIOD;
         index = periodIndex / 256;
         bit = periodIndex % 256;
