@@ -203,9 +203,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         return ((records[index] & mask) != 0);
     }
 
-    function _recordBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart)
-        private
-    {
+    function _recordBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart) private {
         (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
         uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
 
