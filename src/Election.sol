@@ -23,11 +23,11 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     // --- Storage ---
 
     mapping(bytes32 candidate => bool isCandidate) public isCandidate;
-    mapping(address bribeToken => bool isBribeToken) public isBribeToken;
+    mapping(address token => bool isBribeToken) public isBribeToken;
     mapping(uint256 tokenId => uint256 timestamp) public lastVoteTime;
     mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votes)) public votesForCandidateInPeriod;
-    mapping(uint256 tokenId => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votesInPeriod)))
-        public votesByTokenForCandidateInPeriod;
+    mapping(uint256 tokenId => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votes))) public
+        votesByTokenForCandidateInPeriod;
     mapping(address bribeToken => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 amount))) public
         amountOfBribeTokenForCandidateInPeriod;
 
@@ -165,7 +165,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         uint256 periodStart = _votingPeriodStart(block.timestamp);
         amountOfBribeTokenForCandidateInPeriod[bribeToken][candidate][periodStart] += amount;
 
-        // Note: fee-on-transfer not currently supported.
+        // Note: fee-on-transfer not supported.
         IERC20(bribeToken).safeTransferFrom(msg.sender, address(this), amount);
         emit BribeAdded(bribeToken, candidate, periodStart, amount);
     }

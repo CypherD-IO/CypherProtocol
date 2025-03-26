@@ -1,5 +1,7 @@
 pragma solidity 0.8.28;
 
+import {IVotingEscrow} from "./IVotingEscrow.sol";
+
 interface IElection {
     // --- Events ---
 
@@ -86,8 +88,49 @@ interface IElection {
 
     // --- Views ---
 
+    /// @notice Return the address of the voting escrow contract in use.
+    /// @return ve The voting escrow.
+    function ve() external view returns (IVotingEscrow ve);
+
+    /// @notice Whether or not a given bytes32 represents a valid candidate.
+    /// @param candidate A candidate identifier (bytes32).
+    /// @return isCandidate The status of the candidate (true if a valid candidate, otherwise false).
+    function isCandidate(bytes32 candidate) external view returns (bool isCandidate);
+
+    /// @notice Whether or not a given address represents a valid bribe asset.
+    /// @param token Token address to check the status of.
+    /// @return isBribeToken The status of the token (true if valid as a bribe asset).
+    function isBribeToken(address token) external view returns (bool isBribeToken);
+
     /// @notice Return the timestamp of the last voting action by a given veNFT.
-    /// @param tokenId Id of the veNFT.
-    /// @return timestamp Timestamp at which the veNFT last voted.
-    function lastVoteTime(uint256 tokenId) external returns (uint256 timestamp);
+    /// @param tokenId Id of the veNFT to query for.
+    /// @return timestamp Timestamp at which the veNFT last voted (zero if it never voted).
+    function lastVoteTime(uint256 tokenId) external view returns (uint256 timestamp);
+
+    /// @notice Return the total votes for a given candidate during a given voting period.
+    /// @param candidate The identifier of the candidate to query for.
+    /// @param periodStart The first timestamp in the relevant voting period.
+    /// @return votes The total vote weight received by the candidate in the specified period (can change if the period has not yet ended).
+    function votesForCandidateInPeriod(bytes32 candidate, uint256 periodStart) external view returns (uint256 votes);
+
+    /// @notice Return the votes cast by a specific veNFT for a specific candidate during a given vote period.
+    /// @param tokenId Id of the veNFT to query for.
+    /// @param candidate The identifier of the candidate to query for.
+    /// @param periodStart The first timestamp in the relevant voting period.
+    /// @return votes The total vote weight applied by the given veNFT to the given candidate in the specified period.
+    function votesByTokenForCandidateInPeriod(uint256 tokenId, bytes32 candidate, uint256 periodStart)
+        external
+        view
+        returns (uint256 votes);
+
+    /// @notice Check whether a bribe has been claimed.
+    /// @param tokenId Id of the veNFT to query for.
+    /// @param bribeToken The bribe token to query for.
+    /// @param candidate The identifier of the candidate to query for.
+    /// @param timestamp Any timestamp from the voting period to query for.
+    /// @return isBribeClaimed Whether or not the bribe specified by the inputs has been claimed.
+    function hasClaimedBribe(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
+        external
+        view
+        returns (bool isBribeClaimed);
 }
