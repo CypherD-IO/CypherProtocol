@@ -178,7 +178,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         returns (bool)
     {
         uint256 periodStart = _votingPeriodStart(timestamp);
-        if (periodStart < INITIAL_PERIOD_START) revert("timestamp precedes first period");
+        if (periodStart < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod(timestamp);
         return _isBribeClaimed(tokenId, bribeToken, candidate, periodStart);
     }
 

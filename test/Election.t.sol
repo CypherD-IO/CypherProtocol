@@ -21,6 +21,7 @@ contract ElectionTest is Test {
     address constant USER2 = address(0x987654321);
     uint256 private constant VOTE_PERIOD = 2 weeks;
     uint256 private constant MAX_LOCK_DURATION = 52 * 2 weeks;
+    uint256 private constant T0 = 98764321;
 
     Election election;
     VotingEscrow ve;
@@ -30,7 +31,7 @@ contract ElectionTest is Test {
         cypher = new CypherToken(address(this));
         ve = new VotingEscrow(address(cypher));
         cypher.approve(address(ve), type(uint256).max);
-        vm.warp(98764321);
+        vm.warp(T0);
         election = new Election(address(this), address(ve));
     }
 
@@ -981,6 +982,12 @@ contract ElectionTest is Test {
 
         vm.expectRevert(IElection.CanOnlyClaimBribesForPastPeriods.selector);
         election.claimBribes(id, bribeTokens, candidates, period, period + 22 * VOTE_PERIOD);
+    }
+
+    function testHasClaimedBribeTimestampTooEarly() public {
+        uint256 timestamp = _periodStart(T0) - 1;
+        vm.expectRevert(abi.encodeWithSelector(IElection.TimestampPrecedesFirstPeriod.selector, timestamp));
+        election.hasClaimedBribe(1, address(0x1234), CANDIDATE1, timestamp);
     }
 
     function _warpToNextVotePeriodStart() internal returns (uint256 nextPeriodStart) {
