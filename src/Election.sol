@@ -137,7 +137,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
                     if (totalVotes == 0) continue; // No votes for candidate (any bribe value lost!).
 
                     uint256 tokenVotes = votesByTokenForCandidateInPeriod[tokenId][candidate][period];
-                    if (tokenVotes == 0) continue; // Didn't vote for candiate this period.
+                    if (tokenVotes == 0) continue; // Didn't vote for candidate this period.
 
                     if (_isBribeClaimed(tokenId, bribeToken, candidate, period)) continue;
 
