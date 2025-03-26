@@ -184,6 +184,8 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     // --- Internals ---
 
+    /// @dev Voting periods are time intervals of the form [ N * VOTE_PERIOD, (N + 1) * VOTE_PERIOD )
+    ///      (first bound is included, second is excluded).
     function _votingPeriodStart(uint256 timestamp) private pure returns (uint256) {
         unchecked {
             return (timestamp / VOTE_PERIOD) * VOTE_PERIOD;
