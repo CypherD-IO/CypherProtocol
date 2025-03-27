@@ -840,6 +840,99 @@ contract ElectionTest is Test {
         assertTrue(election.hasClaimedBribe(id, address(bribeAsset), CANDIDATE1, thirdPeriod));
     }
 
+    function testBribesOverContractLifetime() public {
+        address[] memory bribeAssets = new address[](2);
+
+        for (uint256 i = 0; i < 2; i++) {
+            bribeAssets[i] = address(new TestToken());
+            TestToken(bribeAssets[i]).mint(address(this), 1_000_000e18);
+            election.enableBribeToken(bribeAssets[i]);
+            TestToken(bribeAssets[i]).approve(address(election), type(uint256).max);
+        }
+
+        election.enableCandidate(CANDIDATE1);
+        election.enableCandidate(CANDIDATE2);
+        bytes32[] memory candidates = new bytes32[](2);
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+
+        uint256 initialPeriodStart = _periodStart(block.timestamp);
+        vm.warp(initialPeriodStart - 1); // So there is voting power even in the initial period.
+
+        cypher.approve(address(ve), 100e18);
+        uint256 id1 = ve.createLock(100e18, MAX_LOCK_DURATION);
+        ve.lockIndefinite(id1);
+
+        cypher.approve(address(ve), 100e18);
+        uint256 id2 = ve.createLock(100e18, MAX_LOCK_DURATION);
+        ve.lockIndefinite(id2);
+
+        uint256[] memory periods = new uint256[](33);
+        for (uint256 i = 0; i < 11; i++) {
+            periods[3 * i] = initialPeriodStart + VOTE_PERIOD * 256 * i;
+            periods[3 * i + 1] = periods[3 * i] + VOTE_PERIOD * (1 + (16 + 5 * i + 99 * i * i) % 254);
+            periods[3 * i + 2] = initialPeriodStart + VOTE_PERIOD * (256 * i + 255);
+        }
+
+        uint256[] memory weights = new uint256[](2);
+        uint256 previousPeriodStart;
+        uint256[] memory balsBefore;
+        uint256[] memory balsAfter;
+
+        for (uint256 i = 0; i < 33; i++) {
+            vm.warp(periods[i]);
+
+            if (i > 0) {
+                balsBefore = _getBalances(bribeAssets, address(this));
+                election.claimBribes(id1, bribeAssets, candidates, initialPeriodStart, previousPeriodStart);
+                balsAfter = _getBalances(bribeAssets, address(this));
+                assertEq(balsAfter[0] - balsBefore[0], 2e18);
+                assertEq(balsBefore[1], balsAfter[1]);
+
+                balsBefore[0] = balsAfter[0];
+                election.claimBribes(id2, bribeAssets, candidates, initialPeriodStart, previousPeriodStart);
+                balsAfter = _getBalances(bribeAssets, address(this));
+                assertEq(balsBefore[0], balsAfter[0]);
+                assertEq(balsAfter[1] - balsBefore[1], 3e18);
+            }
+
+            election.addBribe(bribeAssets[0], 2e18, CANDIDATE1);
+            election.addBribe(bribeAssets[1], 3e18, CANDIDATE2);
+
+            weights[0] = 1;
+            weights[1] = 0;
+            election.vote(id1, candidates, weights);
+
+            weights[0] = 0;
+            weights[1] = 1;
+            election.vote(id2, candidates, weights);
+
+            previousPeriodStart = periods[i];
+        }
+
+        // Claim the final period.
+        vm.warp(previousPeriodStart + VOTE_PERIOD);
+
+        balsBefore = _getBalances(bribeAssets, address(this));
+        election.claimBribes(id1, bribeAssets, candidates, initialPeriodStart, previousPeriodStart);
+        balsAfter = _getBalances(bribeAssets, address(this));
+        assertEq(balsAfter[0] - balsBefore[0], 2e18);
+        assertEq(balsBefore[1], balsAfter[1]);
+
+        balsBefore[0] = balsAfter[0];
+        election.claimBribes(id2, bribeAssets, candidates, initialPeriodStart, previousPeriodStart);
+        balsAfter = _getBalances(bribeAssets, address(this));
+        assertEq(balsBefore[0], balsAfter[0]);
+        assertEq(balsAfter[1] - balsBefore[1], 3e18);
+    }
+
+    function _getBalances(address[] memory tokens, address account) internal view returns (uint256[] memory balances) {
+        balances = new uint256[](tokens.length);
+        for (uint256 i = 0; i < tokens.length; i++) {
+            balances[i] = TestToken(tokens[i]).balanceOf(account);
+        }
+    }
+
     function testClaimBribesAuthorized() public {
         TestToken bribeAsset = new TestToken();
         bribeAsset.mint(address(this), 1e18);
