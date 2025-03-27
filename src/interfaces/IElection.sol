@@ -134,4 +134,15 @@ interface IElection {
         external
         view
         returns (bool isBribeClaimed);
+
+    /// @notice Determine the amount of a bribe in a particular asset that can be claimed by a veNFT for a candidate during a specific period.
+    /// @param tokenId Id of the veNFT to query for.
+    /// @param bribeToken The bribe token to query for.
+    /// @param candidate The identifier of the candidate to query for.
+    /// @param timestamp Any timestamp from the voting period to query for.
+    /// @return amount The claimable bribe amount (zero if none exists, it is not yet claimable, or has already been claimed).
+    function claimableAmount(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
+        external
+        view
+        returns (uint256 amount);
 }

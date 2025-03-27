@@ -1084,6 +1084,167 @@ contract ElectionTest is Test {
         election.hasClaimedBribe(1, address(0x1234), CANDIDATE1, timestamp);
     }
 
+    function testClaimableAmountSuccessCases() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 100e18);
+
+        cypher.approve(address(ve), 10e18);
+        uint256 id1 = ve.createLock(5e18, MAX_LOCK_DURATION);
+        uint256 id2 = ve.createLock(5e18, MAX_LOCK_DURATION);
+
+        uint256 periodStart = _warpToNextVotePeriodStart();
+
+        election.enableCandidate(CANDIDATE1);
+        election.enableCandidate(CANDIDATE2);
+        election.enableBribeToken(address(bribeAsset));
+        bribeAsset.approve(address(election), type(uint256).max);
+
+        uint256 amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, periodStart);
+        assertEq(amt, 0);
+
+        uint256 currentTimestamp = periodStart + 24; // progress a bit
+        vm.warp(currentTimestamp);
+
+        election.addBribe(address(bribeAsset), 7e18, CANDIDATE1);
+
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+
+        currentTimestamp = periodStart + 60; // progress a bit
+        vm.warp(currentTimestamp);
+
+        election.addBribe(address(bribeAsset), 11e18, CANDIDATE2);
+
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+
+        currentTimestamp = periodStart + 3600; // progress a bit
+        vm.warp(currentTimestamp);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 100;
+
+        candidates[0] = CANDIDATE1;
+        election.vote(id1, candidates, weights);
+
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+
+        currentTimestamp = periodStart + 7200; // progress a bit
+        vm.warp(currentTimestamp);
+
+        candidates[0] = CANDIDATE2;
+        election.vote(id2, candidates, weights);
+
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+
+        currentTimestamp = periodStart + VOTE_PERIOD - 1; // last timestamp in the voting period
+        vm.warp(currentTimestamp);
+
+        // Still nothing claimable as we haven't progressed to the next period yet.
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, currentTimestamp);
+        assertEq(amt, 0);
+
+        currentTimestamp = periodStart + VOTE_PERIOD; // first timestamp of the next period
+        vm.warp(currentTimestamp);
+
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, periodStart);
+        assertEq(amt, 7e18);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, periodStart);
+        assertEq(amt, 11e18);
+
+        // Using different timestamps, so long as within the target period, should not matter.
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, periodStart + 3600);
+        assertEq(amt, 7e18);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, periodStart + VOTE_PERIOD - 1);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, periodStart + 1 weeks);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, periodStart + VOTE_PERIOD - 1);
+        assertEq(amt, 11e18);
+
+        currentTimestamp = periodStart + VOTE_PERIOD + 120; // progress a bit
+        vm.warp(currentTimestamp);
+
+        address[] memory bribeTokens = new address[](1);
+        bribeTokens[0] = address(bribeAsset);
+
+        candidates[0] = CANDIDATE1;
+        election.claimBribes(id1, bribeTokens, candidates, periodStart, periodStart);
+
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, periodStart);
+        assertEq(amt, 11e18);
+
+        currentTimestamp = periodStart + VOTE_PERIOD + 240; // progress a bit
+        vm.warp(currentTimestamp);
+
+        candidates[0] = CANDIDATE2;
+        election.claimBribes(id2, bribeTokens, candidates, periodStart, periodStart);
+
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE1, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE1, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id1, address(bribeAsset), CANDIDATE2, periodStart);
+        assertEq(amt, 0);
+        amt = election.claimableAmount(id2, address(bribeAsset), CANDIDATE2, periodStart);
+        assertEq(amt, 0);
+    }
+
+    function testClaimableAmountTimestampTooEarly() public {
+        uint256 timestamp = _periodStart(T0) - 1;
+        vm.expectRevert(abi.encodeWithSelector(IElection.TimestampPrecedesFirstPeriod.selector, timestamp));
+        election.claimableAmount(1, address(0x1234), CANDIDATE1, timestamp);
+    }
+
     function _warpToNextVotePeriodStart() internal returns (uint256 nextPeriodStart) {
         nextPeriodStart = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
         vm.warp(nextPeriodStart);

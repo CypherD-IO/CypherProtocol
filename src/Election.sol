@@ -183,6 +183,33 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         return _isBribeClaimed(tokenId, bribeToken, candidate, periodStart);
     }
 
+    function claimableAmount(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
+        external
+        view
+        returns (uint256)
+    {
+        uint256 periodStart = _votingPeriodStart(timestamp);
+        if (periodStart < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod(timestamp);
+
+        unchecked {
+            // Bribes do not become claimable until a period has finished.
+            if (block.timestamp < periodStart + VOTE_PERIOD) return 0;
+        }
+
+        uint256 totalBribeAmount = amountOfBribeTokenForCandidateInPeriod[bribeToken][candidate][periodStart];
+        if (totalBribeAmount == 0) return 0;
+
+        uint256 totalVotes = votesForCandidateInPeriod[candidate][periodStart];
+        if (totalVotes == 0) return 0;
+
+        uint256 tokenVotes = votesByTokenForCandidateInPeriod[tokenId][candidate][periodStart];
+        if (tokenVotes == 0) return 0;
+
+        if (_isBribeClaimed(tokenId, bribeToken, candidate, periodStart)) return 0;
+
+        return totalBribeAmount * tokenVotes / totalVotes;
+    }
+
     // --- Internals ---
 
     /// @dev Voting periods are time intervals of the form [ N * VOTE_PERIOD, (N + 1) * VOTE_PERIOD )
