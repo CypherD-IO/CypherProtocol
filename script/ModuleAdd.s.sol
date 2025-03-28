@@ -50,6 +50,19 @@ contract ModuleAdd is MultisigProposal {
         );
     }
 
+    function simulate() public override {
+        vm.startPrank(addresses.getAddress("TREASURY_MULTISIG"));
+        (address[] memory targets, uint256[] memory values, bytes[] memory arguments) = getProposalActions();
+
+        /// execute all actions
+        for (uint256 i = 0; i < targets.length; i++) {
+            (bool success,) = targets[i].call{value: values[i]}(arguments[i]);
+            require(success, "Transaction failed");
+        }
+
+        vm.stopPrank();
+    }
+
     function validate() public view override {
         assertTrue(
             ModuleManager(addresses.getAddress("TREASURY_MULTISIG")).isModuleEnabled(
