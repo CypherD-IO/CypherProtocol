@@ -870,7 +870,10 @@ contract ElectionTest is Test {
         uint256[] memory periods = new uint256[](33);
         for (uint256 i = 0; i < 11; i++) {
             periods[3 * i] = initialPeriodStart + VOTE_PERIOD * 256 * i;
-            periods[3 * i + 1] = periods[3 * i] + VOTE_PERIOD * (1 + (16 + 5 * i + 99 * i * i) % 254);
+
+            // Generate pseudo-random intermediate periods.
+            periods[3 * i + 1] = periods[3 * i] + VOTE_PERIOD * (1 + (16 + 5 * i + 98 * i * i) % 254);
+
             periods[3 * i + 2] = initialPeriodStart + VOTE_PERIOD * (256 * i + 255);
         }
 
