@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.28;
 
+import {Addresses} from "lib/forge-proposal-simulator/addresses/Addresses.sol";
+
 import "forge-std/Test.sol";
 
-import {Addresses} from "lib/forge-proposal-simulator/addresses/Addresses.sol";
 import {ModuleAdd} from "script/ModuleAdd.s.sol";
-import {CypherTokenDeploy} from "script/CypherTokenDeploy.s.sol";
 import {CypherToken} from "src/CypherToken.sol";
-import {Enum} from "lib/safe-contracts/contracts/common/Enum.sol";
+import {CypherTokenDeploy} from "script/CypherTokenDeploy.s.sol";
 
 /// @title ModuleAddIntegration
 /// @notice Integration test for ModuleAdd script against a live system
-/// @dev Run with: forge test --match-path test/ModuleAddIntegration.t.sol -vvv --fork-url $RPC_URL
+/// @dev Run with: forge test --match-path test/integration/ModuleAdd.t.sol -vvv --fork-url $RPC_URL
 contract ModuleAddIntegrationTest is Test {
     Addresses public addresses;
     CypherToken public cypherToken;
