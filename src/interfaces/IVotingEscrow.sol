@@ -106,6 +106,11 @@ interface IVotingEscrow is IERC721 {
 
     // --- Views ---
 
+    /// @notice Determine whether an address has authority over a token's voting power.
+    /// @param actor The entity attempting to vote using the token's voting power.
+    /// @param tokenId The id of the vote escrowed position the actor wishes to use the voting power of.
+    function isAuthorizedToVoteFor(address actor, uint256 tokenId) external view returns (bool);
+
     /// @notice Calculate total voting power
     /// @param timestamp Time at which to caluclate voting power
     function totalSupplyAt(uint256 timestamp) external view returns (uint256);
