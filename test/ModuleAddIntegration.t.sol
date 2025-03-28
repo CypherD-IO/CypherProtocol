@@ -59,7 +59,7 @@ contract ModuleAddIntegrationTest is Test {
         moduleAdd.simulate();
     }
 
-    function testValidateSuccess() public {
+    function testValidateSuccess() public view {
         // Call validate function
         moduleAdd.validate();
 
