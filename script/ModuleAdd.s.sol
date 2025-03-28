@@ -35,7 +35,6 @@ contract ModuleAdd is MultisigProposal {
                 addresses.getAddress("GOVERNOR_MULTISIG"),
                 addresses.getAddress("TREASURY_MULTISIG"),
                 addresses.getAddress("CYPHER_TOKEN"),
-                /// ??? who is this ??? and how does it decide on how much bribes / rewards to have
                 addresses.getAddress("REWARD_DISTRIBUTOR"),
                 /// start time is an environment variable set by deployer
                 vm.envUint("START_TIME")
