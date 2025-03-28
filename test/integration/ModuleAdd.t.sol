@@ -36,7 +36,7 @@ contract ModuleAddIntegrationTest is Test {
         cypherToken = CypherToken(tokenAddress);
 
         // Add CypherToken to Addresses
-        addresses.addAddress("CYPHER_TOKEN", tokenAddress, true);
+        addresses.changeAddress("CYPHER_TOKEN", tokenAddress, true);
 
         // Initialize ModuleAdd with our Addresses instance
         moduleAdd = new ModuleAdd();
