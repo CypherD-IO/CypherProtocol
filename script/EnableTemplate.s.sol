@@ -10,7 +10,7 @@ contract EnableTemplate is MultisigProposal {
     function name() public pure override returns (string memory) {
         return "Enable Template";
     }
-    
+
     function description() public pure override returns (string memory) {
         return "Enable Candidate and Tokens in Elections";
     }
@@ -41,7 +41,6 @@ contract EnableTemplate is MultisigProposal {
         }
     }
 
-
     function simulate() public override {
         _simulateActions(addresses.getAddress("GOVERNOR_MULTISIG"));
     }
@@ -53,12 +52,17 @@ contract EnableTemplate is MultisigProposal {
 
         /// assert the candidates are enabled
         for (uint256 i = 0; i < candidates.length; i++) {
-            assertTrue(election.isCandidate(candidates[i]), string.concat("Candidate not enabled: ", vm.toString(candidates[i])));
+            assertTrue(
+                election.isCandidate(candidates[i]),
+                string.concat("Candidate not enabled: ", vm.toString(candidates[i]))
+            );
         }
 
         /// assert the tokens are enabled
         for (uint256 i = 0; i < tokens.length; i++) {
-            assertTrue(election.isBribeToken(tokens[i]), string.concat("Candidate not enabled: ", vm.toString(tokens[i])));
+            assertTrue(
+                election.isBribeToken(tokens[i]), string.concat("Candidate not enabled: ", vm.toString(tokens[i]))
+            );
         }
     }
 }

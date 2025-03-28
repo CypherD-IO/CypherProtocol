@@ -10,7 +10,7 @@ contract DisableTemplate is MultisigProposal {
     function name() public pure override returns (string memory) {
         return "Disable Template";
     }
-    
+
     function description() public pure override returns (string memory) {
         return "Disable Candidate and Tokens in Elections";
     }
@@ -52,7 +52,9 @@ contract DisableTemplate is MultisigProposal {
 
         /// assert the candidates are disabled
         for (uint256 i = 0; i < candidates.length; i++) {
-            assertFalse(election.isCandidate(candidates[i]), string.concat("Candidate enabled: ", vm.toString(candidates[i])));
+            assertFalse(
+                election.isCandidate(candidates[i]), string.concat("Candidate enabled: ", vm.toString(candidates[i]))
+            );
         }
 
         /// assert the tokens are disabled
