@@ -30,6 +30,7 @@ contract ModuleAddIntegrationTest is Test {
         chainIds[0] = 8453;
         addresses = new Addresses("addresses", chainIds);
 
+        /// TODO remove this completely once the cypher token has been deployed
         // Deploy CypherToken
         CypherTokenDeploy cypherTokenDeploy = new CypherTokenDeploy();
         address tokenAddress = cypherTokenDeploy.deploy(TREASURY_MULTISIG);
@@ -53,6 +54,7 @@ contract ModuleAddIntegrationTest is Test {
 
         moduleAdd.setAddresses(addresses);
 
+        /// TODO remove this completely once the cypher smart contract system has been deployed
         moduleAdd.deploy();
         moduleAdd.build();
         moduleAdd.simulate();
