@@ -48,10 +48,10 @@ jobs:
 
       - name: Run Forge Unit tests
         run: |
-          forge test --ffi -vvv --mc UnitTest
+          forge test --match-path 'test/unit/*.t.sol' --ffi
         id: test
 
       - name: Run Forge Integration tests
         run: |
-          forge test -vvv --mc ModuleAddIntegrationTest --rpc-url base
+          forge test -vvv --match-path 'test/integration/*.t.sol' --rpc-url base
         id: integration-test
