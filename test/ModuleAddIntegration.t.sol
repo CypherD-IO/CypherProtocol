@@ -2,7 +2,6 @@
 pragma solidity =0.8.28;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
 
 import {Addresses} from "lib/forge-proposal-simulator/addresses/Addresses.sol";
 import {ModuleAdd} from "script/ModuleAdd.s.sol";
