@@ -25,7 +25,7 @@ contract MockSafe is ModuleManager {
     }
 }
 
-contract DistributionModuleTest is Test {
+contract DistributionModuleUnitTest is Test {
     DistributionModule module;
     MockToken token;
     MockSafe safe;

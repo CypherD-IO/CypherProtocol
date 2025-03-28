@@ -7,7 +7,7 @@ import "../src/VotingEscrow.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-contract VotingEscrowTest is Test {
+contract VotingEscrowUnitTest is Test {
     using SafeCast for int128;
 
     uint256 private constant VOTE_PERIOD = 2 weeks;
