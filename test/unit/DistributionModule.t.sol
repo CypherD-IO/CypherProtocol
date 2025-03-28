@@ -7,7 +7,7 @@ import "forge-std/Test.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "lib/safe-contracts/contracts/base/ModuleManager.sol";
 
-import "../src/DistributionModule.sol";
+import "src/DistributionModule.sol";
 
 contract MockToken is ERC20 {
     constructor() ERC20("Mock", "MOCK") {
@@ -25,7 +25,7 @@ contract MockSafe is ModuleManager {
     }
 }
 
-contract DistributionModuleTest is Test {
+contract DistributionModuleUnitTest is Test {
     DistributionModule module;
     MockToken token;
     MockSafe safe;

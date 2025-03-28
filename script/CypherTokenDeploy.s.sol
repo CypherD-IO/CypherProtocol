@@ -5,6 +5,10 @@ import "forge-std/Script.sol";
 import "src/CypherToken.sol";
 
 contract CypherTokenDeploy is Script {
+    function deploy(address treasury) public returns (address) {
+        return address(new CypherToken(treasury));
+    }
+
     function run() public returns (CypherToken) {
         // Retrieve treasury address from environment variable
         address treasury = vm.envAddress("TREASURY_ADDRESS");
@@ -13,7 +17,7 @@ contract CypherTokenDeploy is Script {
         vm.startBroadcast();
 
         // Deploy the CypherToken contract
-        CypherToken token = new CypherToken(treasury);
+        CypherToken token = CypherToken(deploy(treasury));
 
         // End broadcast
         vm.stopBroadcast();

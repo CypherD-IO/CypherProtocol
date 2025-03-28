@@ -120,6 +120,7 @@ contract DistributionModule is Ownable {
         return startTime + (durationWeeks * WEEK);
     }
 
+    /// @notice function that returns the array of structs of all emission schedules
     function getEmissionSchedules() public view returns (EmissionSchedule[] memory schedule) {
         return emissionSchedules;
     }
@@ -191,7 +192,7 @@ contract DistributionModule is Ownable {
         emit TokensEmitted(amount, emissionAddress);
     }
 
-    /// @notice Update emission address
+    /// @notice Update emission address, callable only by the owner
     /// @param _newEmissionAddress New address to receive emissions
     function updateEmissionAddress(address _newEmissionAddress) external onlyOwner {
         require(_newEmissionAddress != address(0), "Invalid address");

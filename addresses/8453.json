@@ -1,0 +1,17 @@
+[
+  {
+    "addr": "0x9679E26bf0C470521DE83Ad77BB1bf1e7312f739",
+    "name": "DEPLOYER_EOA",
+    "isContract": false
+  },
+  {
+    "addr": "0x3ed87aad7e4204290b2c1e8f189728fd7204f582",
+    "name": "TREASURY_MULTISIG",
+    "isContract": true
+  },
+  {
+    "addr": "0x962e6ca8b27d616aa56077fd0c66565e48371144",
+    "name": "GOVERNOR_MULTISIG",
+    "isContract": true
+  }
+]

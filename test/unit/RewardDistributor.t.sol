@@ -2,11 +2,11 @@ pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 
-import {CypherToken} from "../src/CypherToken.sol";
-import {RewardDistributor} from "../src/RewardDistributor.sol";
-import {IRewardDistributor} from "../src/interfaces/IRewardDistributor.sol";
+import {CypherToken} from "src/CypherToken.sol";
+import {RewardDistributor} from "src/RewardDistributor.sol";
+import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 
-contract RewardDistributorTest is Test {
+contract RewardDistributorUnitTest is Test {
     CypherToken cypher;
     RewardDistributor rd;
 

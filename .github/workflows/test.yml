@@ -46,7 +46,12 @@ jobs:
           forge build --sizes
         id: build
 
-      - name: Run Forge tests
+      - name: Run Forge Unit tests
         run: |
-          forge test --ffi -vvv
+          forge test --match-path 'test/unit/*.t.sol' --ffi
         id: test
+
+      - name: Run Forge Integration tests
+        run: |
+          forge test -vvv --match-path 'test/integration/*.t.sol' --rpc-url base
+        id: integration-test
