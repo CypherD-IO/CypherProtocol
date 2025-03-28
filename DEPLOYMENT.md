@@ -1,4 +1,6 @@
-# Cypher Token Deployment Guide for Base
+# Cypher System Deployment Guide for Base
+
+## Cypher Token Deployment
 
 This document provides instructions for deploying the Cypher Token (`CYPR`) to the Base network using the Foundry framework.
 
@@ -128,8 +130,48 @@ Check token symbol:
 cast call <DEPLOYED_CONTRACT_ADDRESS> "symbol()(string)" --rpc-url base
 ```
 
-## Base-Specific Considerations
 
-1. **RPC Errors**: If you encounter RPC errors, try using an alternative RPC endpoint or check the Base status page.
+## Cypher Smart Contract Deployment
 
-2. **Keystore Access**: If you have issues accessing your keystore, ensure the path is correct and that you have the password.
+## Overview
+
+This script will deploy all non-token contracts in the Cypher system.
+- `DistributionModule`: Sends emissions to the Reward Distributor
+- `RewardDistributor`: Distributes Cypher rewards via Merkle Proofs
+- `Election`: Manages the voting process for Cypher governance
+- `VotingEscrow`: Locks up CYPHER tokens for voting and emissions
+
+## Prerequisites
+
+Before running the deployment script, the following addresses must be set to their correct values in [8453.json](addresses/8453.json) as they are currently set to random values:
+- `TREASURY_MULTISIG`: The address to add the DistributionModule to
+- `GOVERNOR_MULTISIG`: The governor address
+- `CYPHER_TOKEN`: The Cypher Governance Token
+- `DEPLOYER_EOA`: The address being used to deploy the contracts
+
+### Environment Variables
+- `START_TIME`: The start time at which point emissions will go live in unix time. This number modulo `7 * 86400` must equal 0 (be at the week boundary), otherwise deployment will fail.
+- `DO_UPDATE_JSON=true`: Set to true to update the addresses in the [8453.json](addresses/8453.json) file during deployment. This is set to false by default.
+- `ETHERSCAN_API_KEY`: Your etherscan API key for verifying the contracts on basescan.
+
+### Dry Run / Simulation
+To simulate the deployment without broadcasting transactions:
+
+```bash
+START_TIME=1743638400 forge script ModuleAdd -vvv --rpc-url base
+```
+
+### Deployment
+To deploy and verify the contracts on basescan, run the following command:
+
+```bash
+START_TIME=1743638400 DO_UPDATE_JSON=true forge script ModuleAdd -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
+```
+
+
+### Post Deployment
+
+After deploying the smart contracts, the following steps should be taken:
+- Check the contracts have been verified on basescan by pasting each contract's addresses into [basescan](https://basescan.org/).
+- Check that [8453.json](addresses/8453.json) has been updated with the correct addresses. Ensure all 4 addresses were added to this file.
+- Check the changes in [8453.json](addresses/8453.json) into git.
