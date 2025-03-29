@@ -1,9 +1,10 @@
 pragma solidity 0.8.28;
 
-import "./interfaces/ICypherToken.sol";
-import "./interfaces/IRewardDistributor.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+
+import {ICypherToken} from "src/interfaces/ICypherToken.sol";
+import {IRewardDistributor} from "src/interfaces/IRewardDistributor.sol";
 
 contract RewardDistributor is IRewardDistributor, Ownable {
     ICypherToken public immutable cypher;

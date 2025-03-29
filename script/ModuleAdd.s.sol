@@ -3,13 +3,27 @@ pragma solidity =0.8.28;
 
 import {MultisigProposal} from "forge-proposal-simulator/src/proposals/MultisigProposal.sol";
 import {ModuleManager} from "lib/safe-contracts/contracts/base/ModuleManager.sol";
+import {Addresses} from "lib/forge-proposal-simulator/addresses/Addresses.sol";
 
+import {Election} from "src/Election.sol";
+import {VotingEscrow} from "src/VotingEscrow.sol";
 import {RewardDistributor} from "src/RewardDistributor.sol";
 import {DistributionModule} from "src/DistributionModule.sol";
 
 /// @notice this script requires environment variable START_TIME to be set
 /// to a timestamp in the future that is a week boundary where the remainder
 /// of the division by 7 * 86400 is 0. This is when incentives will start.
+/// If the start time is set to the past, or not a week boundary, the script
+/// will revert because the DistributionModule will fail to deploy.
+
+/// start time must be set to a week boundary
+///  example usage for local testing:
+///     START_TIME=1743638400 forge script ModuleAdd -vvv --rpc-url base
+
+///  mainnet usage:
+///  please note the deployer EOA in 8453.json must be the same as the account broadcasting this transaction
+///     START_TIME=1743638400 DO_UPDATE_JSON=true forge script ModuleAdd -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
+
 contract ModuleAdd is MultisigProposal {
     /// @notice returns the name of the proposal
     function name() public pure override returns (string memory) {
@@ -17,12 +31,41 @@ contract ModuleAdd is MultisigProposal {
     }
 
     function description() public pure override returns (string memory) {
-        return "Deploy Distribution Module and Reward Distributor, add Distribution Module to Treasury Multisig";
+        return "Deploy Cypher System, add Distribution Module to Treasury Multisig";
+    }
+
+    modifier addressModifier() {
+        if (address(addresses) == address(0)) {
+            uint256[] memory chainIds = new uint256[](1);
+            chainIds[0] = 8453;
+            addresses = new Addresses("addresses", chainIds);
+        }
+        _;
+    }
+
+    function run() public override addressModifier {
+        super.run();
     }
 
     /// @notice deploy any contracts needed for the proposal.
     /// @dev contracts calls here are broadcast if the broadcast flag is set.
-    function deploy() public override {
+    function deploy() public override addressModifier {
+        require(addresses.isAddressSet("CYPHER_TOKEN"), "Cypher token not set, cannot deploy");
+        require(addresses.isAddressSet("DEPLOYER_EOA"), "Deployer EOA not set, cannot deploy");
+        require(addresses.isAddressSet("GOVERNOR_MULTISIG"), "Governor Multisig not set, cannot deploy");
+        require(addresses.isAddressSet("TREASURY_MULTISIG"), "Treasury Multisig not set, cannot deploy");
+
+        if (!addresses.isAddressSet("VOTING_ESCROW")) {
+            VotingEscrow voteEscrow = new VotingEscrow(addresses.getAddress("CYPHER_TOKEN"));
+            addresses.addAddress("VOTING_ESCROW", address(voteEscrow), true);
+        }
+
+        if (!addresses.isAddressSet("ELECTION")) {
+            Election election =
+                new Election(addresses.getAddress("GOVERNOR_MULTISIG"), addresses.getAddress("VOTING_ESCROW"));
+            addresses.addAddress("ELECTION", address(election), true);
+        }
+
         if (!addresses.isAddressSet("REWARD_DISTRIBUTOR")) {
             /// TODO add all of the addresses to the base (8453) JSON file
             RewardDistributor rewardDistributor =
@@ -43,14 +86,14 @@ contract ModuleAdd is MultisigProposal {
         }
     }
 
-    function build() public override buildModifier(addresses.getAddress("TREASURY_MULTISIG")) {
+    function build() public override addressModifier buildModifier(addresses.getAddress("TREASURY_MULTISIG")) {
         // add the distribution module to the treasury multisig
         ModuleManager(addresses.getAddress("TREASURY_MULTISIG")).enableModule(
             addresses.getAddress("DISTRIBUTION_MODULE")
         );
     }
 
-    function simulate() public override {
+    function simulate() public override addressModifier {
         vm.startPrank(addresses.getAddress("TREASURY_MULTISIG"));
         (address[] memory targets, uint256[] memory values, bytes[] memory arguments) = getProposalActions();
 
@@ -91,5 +134,12 @@ contract ModuleAdd is MultisigProposal {
         RewardDistributor distributor = RewardDistributor(rewardDistributor);
         assertEq(distributor.owner(), governor, "Reward Distributor not owned by governor multisig");
         assertEq(address(distributor.cypher()), cypherToken, "Reward Distributor not pointing to Cypher token");
+
+        Election election = Election(addresses.getAddress("ELECTION"));
+        assertEq(election.owner(), governor, "Election not owned by governor multisig");
+        assertEq(address(election.ve()), addresses.getAddress("VOTING_ESCROW"), "Voting Escrow not set");
+
+        VotingEscrow voteEscrow = VotingEscrow(addresses.getAddress("VOTING_ESCROW"));
+        assertEq(address(voteEscrow.cypher()), addresses.getAddress("CYPHER_TOKEN"), "Cypher Token not set");
     }
 }
