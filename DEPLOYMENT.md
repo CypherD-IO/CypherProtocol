@@ -138,7 +138,7 @@ cast call <DEPLOYED_CONTRACT_ADDRESS> "symbol()(string)" --rpc-url base
 This script will deploy all non-token contracts in the Cypher system.
 - `DistributionModule`: Sends emissions to the Reward Distributor
 - `RewardDistributor`: Distributes Cypher rewards via Merkle Proofs
-- `Election`: Manages the voting process for Cypher governance
+- `Election`: Manages the voting and bribing processes for Cypher governance
 - `VotingEscrow`: Locks up CYPHER tokens for voting and emissions
 
 ## Prerequisites
