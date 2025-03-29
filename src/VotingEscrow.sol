@@ -23,7 +23,7 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
 
     // --- Immutables ---
 
-    ICypherToken private immutable cypher;
+    ICypherToken public immutable cypher;
 
     // --- Storage ---
 
