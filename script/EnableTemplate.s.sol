@@ -5,8 +5,9 @@ import {MultisigProposal} from "forge-proposal-simulator/src/proposals/MultisigP
 import {ModuleManager} from "lib/safe-contracts/contracts/base/ModuleManager.sol";
 
 import {Election} from "src/Election.sol";
+import {BaseTemplate} from "script/BaseTemplate.sol";
 
-contract EnableTemplate is MultisigProposal {
+contract EnableTemplate is BaseTemplate {
     function name() public pure override returns (string memory) {
         return "Enable Template";
     }
@@ -15,18 +16,9 @@ contract EnableTemplate is MultisigProposal {
         return "Enable Candidate and Tokens in Elections";
     }
 
-    function getCandidatesAndTokens() public view returns (bytes32[] memory, address[] memory) {
-        string memory path = vm.envString("ENABLE_PATH");
-        string memory fileContents = vm.readFile(path);
-        bytes32[] memory candidates = vm.parseJsonBytes32Array(fileContents, ".candidates");
-        address[] memory tokens = vm.parseJsonAddressArray(fileContents, ".tokens");
-
-        return (candidates, tokens);
-    }
-
-    function build() public override buildModifier(addresses.getAddress("GOVERNOR_MULTISIG")) {
+    function build() public override addressModifier buildModifier(addresses.getAddress("GOVERNOR_MULTISIG")) {
         // add the distribution module to the treasury multisig
-        (bytes32[] memory candidates, address[] memory tokens) = getCandidatesAndTokens();
+        (bytes32[] memory candidates, string[] memory tokens) = getCandidatesAndTokens("ENABLE_PATH");
 
         Election election = Election(addresses.getAddress("ELECTION"));
 
@@ -37,16 +29,12 @@ contract EnableTemplate is MultisigProposal {
 
         /// enable the tokens
         for (uint256 i = 0; i < tokens.length; i++) {
-            election.enableBribeToken(tokens[i]);
+            election.enableBribeToken(addresses.getAddress(tokens[i]));
         }
     }
 
-    function simulate() public override {
-        _simulateActions(addresses.getAddress("GOVERNOR_MULTISIG"));
-    }
-
     function validate() public view override {
-        (bytes32[] memory candidates, address[] memory tokens) = getCandidatesAndTokens();
+        (bytes32[] memory candidates, string[] memory tokens) = getCandidatesAndTokens("ENABLE_PATH");
 
         Election election = Election(addresses.getAddress("ELECTION"));
 
@@ -61,7 +49,8 @@ contract EnableTemplate is MultisigProposal {
         /// assert the tokens are enabled
         for (uint256 i = 0; i < tokens.length; i++) {
             assertTrue(
-                election.isBribeToken(tokens[i]), string.concat("Candidate not enabled: ", vm.toString(tokens[i]))
+                election.isBribeToken(addresses.getAddress(tokens[i])),
+                string.concat("Candidate not enabled: ", tokens[i])
             );
         }
     }
