@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity =0.8.28;
 
-import {MultisigProposal} from "forge-proposal-simulator/src/proposals/MultisigProposal.sol";
-import {ModuleManager} from "lib/safe-contracts/contracts/base/ModuleManager.sol";
-
-import {Election} from "src/Election.sol";
+import {IElection} from "src/interfaces/IElection.sol";
 import {BaseTemplate} from "script/BaseTemplate.sol";
 
 contract DisableTemplate is BaseTemplate {
@@ -20,7 +17,7 @@ contract DisableTemplate is BaseTemplate {
         // add the distribution module to the treasury multisig
         (bytes32[] memory candidates, string[] memory tokens) = getCandidatesAndTokens("DISABLE_PATH");
 
-        Election election = Election(addresses.getAddress("ELECTION"));
+        IElection election = IElection(addresses.getAddress("ELECTION"));
 
         /// enable the candidates
         for (uint256 i = 0; i < candidates.length; i++) {
@@ -36,7 +33,7 @@ contract DisableTemplate is BaseTemplate {
     function validate() public view override {
         (bytes32[] memory candidates, string[] memory tokens) = getCandidatesAndTokens("DISABLE_PATH");
 
-        Election election = Election(addresses.getAddress("ELECTION"));
+        IElection election = IElection(addresses.getAddress("ELECTION"));
 
         /// assert the candidates are disabled
         for (uint256 i = 0; i < candidates.length; i++) {
