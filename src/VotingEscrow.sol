@@ -8,7 +8,7 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /// @title Voting Escrow
-/// @author Heavily inspired by Curve's VotingEscrow (https://github.com/curvefi/curve-dao-contracts/blob/567927551903f71ce5a73049e077be87111963cc/contracts/VotingEscrow.vy)
+/// @author Heavily inspired by Curve's VotingEscrow (https://github.com/curvefi/curve-dao-contracts/blob/567927551903f71ce5a73049e077be87111963cc/contracts/VotingEscrow.vy). In fact, mostly a direct translation from Vyper to Solidity.
 contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     using SafeCast for uint256;
     using SafeCast for int256;
