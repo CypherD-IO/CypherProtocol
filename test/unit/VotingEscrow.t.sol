@@ -192,6 +192,31 @@ contract VotingEscrowUnitTest is Test {
         assertTrue(!isIndefinite);
     }
 
+    function testMergeFromExpired() public {
+        uint256 initTime = _get2TimesTimestamp() / 2; // work around the optimizer
+
+        uint256 idFrom = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        vm.warp(initTime + 4 * VOTE_PERIOD);
+
+        uint256 idTo = ve.createLock(2e18, 16 * VOTE_PERIOD);
+
+        ve.merge(idFrom, idTo);
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(idTo);
+        assertEq(amount, 3e18);
+        assertEq(end, ((initTime + 20 * VOTE_PERIOD) / VOTE_PERIOD) * VOTE_PERIOD);
+        assertTrue(!isIndefinite);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.ownerOf(idFrom);
+
+        (amount, end, isIndefinite) = ve.locked(idFrom);
+        assertEq(amount, 0);
+        assertEq(end, 0);
+        assertTrue(!isIndefinite);
+    }
+
     function testMergeFuzz(
         uint256 startTimeSeed,
         uint256 fromValueSeed,
@@ -355,4 +380,6 @@ contract VotingEscrowUnitTest is Test {
         assertEq(ve.balanceOfAt(id1, ts), 0);
         assertEq(ve.balanceOfAt(id2, ts), 0);
     }
+
+    function _get2TimesTimestamp() internal view returns (uint256) { return block.timestamp * 2; }
 }
