@@ -3,16 +3,16 @@ pragma solidity 0.8.28;
 
 import "forge-std/Test.sol";
 
-import {IElection} from "../src/interfaces/IElection.sol";
+import {IElection} from "src/interfaces/IElection.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-import {CypherToken} from "../src/CypherToken.sol";
-import {Election} from "../src/Election.sol";
-import {VotingEscrow} from "../src/VotingEscrow.sol";
-import {TestToken} from "./mocks/TestToken.sol";
-import {ReenteringToken} from "./mocks/ReenteringToken.sol";
+import {CypherToken} from "src/CypherToken.sol";
+import {Election} from "src/Election.sol";
+import {VotingEscrow} from "src/VotingEscrow.sol";
+import {TestToken} from "test/mocks/TestToken.sol";
+import {ReenteringToken} from "test/mocks/ReenteringToken.sol";
 
 contract ElectionTest is Test {
     bytes32 constant STARTING_CANDIDATE = keccak256(hex"ffffff");
