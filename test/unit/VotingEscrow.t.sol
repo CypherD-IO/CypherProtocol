@@ -111,6 +111,49 @@ contract VotingEscrowUnitTest is Test {
         assertTrue(!isIndefinite);
     }
 
+    function testCreateLockForReentrancy() public {
+        ReenteringToken token = new ReenteringToken();
+        ve = new VotingEscrow(address(token));
+        token.mint(address(this), 1e18);
+        token.approve(address(ve), type(uint256).max);
+        vm.warp(INIT_TIMESTAMP);
+
+        ReenteringActor reenterer = new ReenteringActor();
+        reenterer.setTarget(address(token));
+        reenterer.makeCall(abi.encodeWithSelector(IERC20.approve.selector, address(ve), type(uint256).max));
+        reenterer.setTarget(address(ve));
+        token.mint(address(reenterer), 1e18);
+
+        bytes memory createLockForData =
+            abi.encodeWithSelector(IVotingEscrow.createLockFor.selector, 1e18, 8 * VOTE_PERIOD, address(this));
+        bytes memory makeCallData = abi.encodeWithSelector(ReenteringActor.makeCall.selector, createLockForData);
+        token.setCall(address(reenterer), makeCallData);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        ve.createLockFor(1e18, 12 * VOTE_PERIOD, address(this));
+    }
+
+    function testCreateLockForDurationAdditionOverfow() public {
+        vm.expectRevert(stdError.arithmeticError);
+        ve.createLockFor(1e18, type(uint256).max, address(this));
+    }
+
+    function testCreateLockForDurationExceedsMaximum() public {
+        vm.expectRevert(IVotingEscrow.LockDurationExceedsMaximum.selector);
+        ve.createLockFor(1e18, 53 * VOTE_PERIOD, address(this));
+    }
+
+    function testCreateLockForZeroValue() public {
+        vm.expectRevert(IVotingEscrow.ZeroValue.selector);
+        ve.createLockFor(0, 8 * VOTE_PERIOD, address(this));
+    }
+
+    function testCreateLockForUnlockTimeNotInFuture() public {
+        assert(block.timestamp % VOTE_PERIOD != 0);
+        vm.expectRevert(IVotingEscrow.UnlockTimeNotInFuture.selector);
+        ve.createLockFor(1e18, 1, address(this));
+    }
+
     function testDepositForBasic() public {
         uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
         uint256 unlockTime = ((block.timestamp + 2 * VOTE_PERIOD) / VOTE_PERIOD) * VOTE_PERIOD;
