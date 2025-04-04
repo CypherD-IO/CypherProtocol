@@ -22,7 +22,7 @@ Before running the deployment script, ensure you have the following:
 1. **Private Key Setup**
    - Ensure a keystore file exists for your deployer account:
      ```bash
-     cast wallet import --name <deployer_name> --private-key <your_private_key>
+     cast wallet import <deployer_name> --private-key <your_private_key>
      ```
    - This will store your encrypted keystore at `~/.foundry/keystores/<deployer_name>`
 
@@ -154,18 +154,33 @@ Before running the deployment script, the following addresses must be set to the
 - `DO_UPDATE_JSON=true`: Set to true to update the addresses in the [8453.json](addresses/8453.json) file during deployment. This is set to false by default.
 - `ETHERSCAN_API_KEY`: Your etherscan API key for verifying the contracts on basescan.
 
+### Voting - Starting Candidates and Bribe Tokens
+
+To set the starting candidates and bribe tokens, you will need to change the [election.json](genesis/election.json) file in the genesis directory. The structure is as follows:
+
+```json
+{
+    "candidates": [
+        "0xa210df63555e6bcab6f13f8827ac79db7a7a7dd84114b8f8c57a8f1e64619902"
+    ],
+    "tokens": ["CYPHER_TOKEN"]
+}
+```
+
+The tokens array should contain the identifiers of the tokens in the addresses.json file. The candidates array should contain the bytes32 hashes of the candidates you want to start with.
+
 ### Dry Run / Simulation
 To simulate the deployment without broadcasting transactions:
 
 ```bash
-START_TIME=1743638400 forge script ModuleAdd -vvv --rpc-url base
+START_TIME=1743638400 forge script SystemDeploy -vvv --rpc-url base
 ```
 
 ### Deployment
 To deploy and verify the contracts on basescan, run the following command:
 
 ```bash
-START_TIME=1743638400 DO_UPDATE_JSON=true forge script ModuleAdd -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
+START_TIME=1743638400 DO_UPDATE_JSON=true forge script SystemDeploy -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
 ```
 
 
