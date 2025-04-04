@@ -40,18 +40,43 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     // --- Constructor ---
 
-    constructor(address initialOwner, address votingEscrow) Ownable(initialOwner) {
+    constructor(
+        address initialOwner,
+        address votingEscrow,
+        bytes32[] memory startingCandidates,
+        address[] memory startingBribeTokens
+    ) Ownable(initialOwner) {
         ve = IVotingEscrow(votingEscrow);
         INITIAL_PERIOD_START = _votingPeriodStart(block.timestamp);
+
+        /// enable starting candidates
+        for (uint256 i = 0; i < startingCandidates.length; i++) {
+            _enableCandidate(startingCandidates[i]);
+        }
+
+        /// enable starting bribe tokens
+        for (uint256 i = 0; i < startingBribeTokens.length; i++) {
+            _enableBribeToken(startingBribeTokens[i]);
+        }
+    }
+
+    function _enableCandidate(bytes32 candidate) private {
+        if (isCandidate[candidate]) revert CandidateAlreadyEnabled();
+        isCandidate[candidate] = true;
+        emit CandidateEnabled(candidate);
+    }
+
+    function _enableBribeToken(address token) private {
+        if (isBribeToken[token]) revert BribeTokenAlreadyEnabled();
+        isBribeToken[token] = true;
+        emit BribeTokenEnabled(token);
     }
 
     // --- Mutations ---
 
     /// @inheritdoc IElection
     function enableCandidate(bytes32 candidate) external onlyOwner {
-        if (isCandidate[candidate]) revert CandidateAlreadyEnabled();
-        isCandidate[candidate] = true;
-        emit CandidateEnabled(candidate);
+        _enableCandidate(candidate);
     }
 
     /// @inheritdoc IElection
@@ -63,9 +88,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     /// @inheritdoc IElection
     function enableBribeToken(address token) external onlyOwner {
-        if (isBribeToken[token]) revert BribeTokenAlreadyEnabled();
-        isBribeToken[token] = true;
-        emit BribeTokenEnabled(token);
+        _enableBribeToken(token);
     }
 
     /// @inheritdoc IElection
@@ -114,6 +137,8 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         uint256 from,
         uint256 until
     ) external nonReentrant {
+        /// assume that claim happens while user still owns the token
+        /// do not merge a token until bribes are claimed for it
         if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedToClaimBribesFor(tokenId);
 
         uint256 firstPeriod = _votingPeriodStart(from);
