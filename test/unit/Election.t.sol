@@ -13,7 +13,7 @@ import {VotingEscrow} from "src/VotingEscrow.sol";
 import {TestToken} from "test/mocks/TestToken.sol";
 import {ReenteringToken} from "test/mocks/ReenteringToken.sol";
 
-contract ElectionTest is Test {
+contract ElectionUnitTest is Test {
     bytes32 constant CANDIDATE1 = keccak256(hex"f833a28e");
     bytes32 constant CANDIDATE2 = keccak256(hex"22222222");
     bytes32 constant CANDIDATE3 = keccak256(hex"333333");

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity =0.8.28;
 
-import "./interfaces/ICypherToken.sol";
-import "./interfaces/IVotingEscrow.sol";
+import {ICypherToken} from "./interfaces/ICypherToken.sol";
+import {IVotingEscrow} from "./interfaces/IVotingEscrow.sol";
+
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";

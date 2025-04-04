@@ -3,11 +3,17 @@ pragma solidity =0.8.28;
 
 import "forge-std/Test.sol";
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
-import "src/CypherToken.sol";
-import "src/VotingEscrow.sol";
+import {CypherToken} from "src/CypherToken.sol";
+import {IVotingEscrow} from "src/interfaces/IVotingEscrow.sol";
+import {VotingEscrow} from "src/VotingEscrow.sol";
+
+import {ReenteringActor} from "test/mocks/ReenteringActor.sol";
+import {ReenteringToken} from "test/mocks/ReenteringToken.sol";
 
 contract VotingEscrowUnitTest is Test {
     using SafeCast for int128;
@@ -44,6 +50,48 @@ contract VotingEscrowUnitTest is Test {
         assertEq(amount, 1e18);
         assertEq(end, ((block.timestamp + duration) / VOTE_PERIOD) * VOTE_PERIOD);
         assertTrue(!isIndefinite);
+    }
+
+    function testCreateLockReentrancy() public {
+        ReenteringToken token = new ReenteringToken();
+        ve = new VotingEscrow(address(token));
+        token.mint(address(this), 1e18);
+        token.approve(address(ve), type(uint256).max);
+        vm.warp(INIT_TIMESTAMP);
+
+        ReenteringActor reenterer = new ReenteringActor();
+        reenterer.setTarget(address(token));
+        reenterer.makeCall(abi.encodeWithSelector(IERC20.approve.selector, address(ve), type(uint256).max));
+        reenterer.setTarget(address(ve));
+        token.mint(address(reenterer), 1e18);
+
+        bytes memory createLockData = abi.encodeWithSelector(IVotingEscrow.createLock.selector, 1e18, 8 * VOTE_PERIOD);
+        bytes memory makeCallData = abi.encodeWithSelector(ReenteringActor.makeCall.selector, createLockData);
+        token.setCall(address(reenterer), makeCallData);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        ve.createLock(1e18, 12 * VOTE_PERIOD);
+    }
+
+    function testCreateLockDurationAdditionOverfow() public {
+        vm.expectRevert(stdError.arithmeticError);
+        ve.createLock(1e18, type(uint256).max);
+    }
+
+    function testCreateLockDurationExceedsMaximum() public {
+        vm.expectRevert(IVotingEscrow.LockDurationExceedsMaximum.selector);
+        ve.createLock(1e18, 53 * VOTE_PERIOD);
+    }
+
+    function testCreateLockZeroValue() public {
+        vm.expectRevert(IVotingEscrow.ZeroValue.selector);
+        ve.createLock(0, 8 * VOTE_PERIOD);
+    }
+
+    function testCreateLockUnlockTimeNotInFuture() public {
+        assert(block.timestamp % VOTE_PERIOD != 0);
+        vm.expectRevert(IVotingEscrow.UnlockTimeNotInFuture.selector);
+        ve.createLock(1e18, 1);
     }
 
     function testCreatLockForBasic() public {
@@ -381,5 +429,7 @@ contract VotingEscrowUnitTest is Test {
         assertEq(ve.balanceOfAt(id2, ts), 0);
     }
 
-    function _get2TimesTimestamp() internal view returns (uint256) { return block.timestamp * 2; }
+    function _get2TimesTimestamp() internal view returns (uint256) {
+        return block.timestamp * 2;
+    }
 }

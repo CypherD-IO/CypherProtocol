@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity =0.8.28;
 
-import "./interfaces/ICypherToken.sol";
+import {ICypherToken} from "./interfaces/ICypherToken.sol";
+
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Permit, Nonces} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import {ERC20Votes, Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
