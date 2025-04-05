@@ -5,7 +5,7 @@ import {Addresses} from "lib/forge-proposal-simulator/addresses/Addresses.sol";
 
 import "forge-std/Test.sol";
 
-import {ModuleAdd} from "script/ModuleAdd.s.sol";
+import {SystemDeploy} from "script/SystemDeploy.s.sol";
 import {CypherToken} from "src/CypherToken.sol";
 import {CypherTokenDeploy} from "script/CypherTokenDeploy.s.sol";
 
@@ -13,7 +13,7 @@ import {CypherTokenDeploy} from "script/CypherTokenDeploy.s.sol";
 contract IntegrationBase is Test {
     Addresses public addresses;
     CypherToken public cypherToken;
-    ModuleAdd public moduleAdd;
+    SystemDeploy public systemDeploy;
 
     // Mock addresses for testing
     address public GOVERNOR_MULTISIG;
@@ -39,8 +39,8 @@ contract IntegrationBase is Test {
         // Add CypherToken to Addresses
         addresses.changeAddress("CYPHER_TOKEN", tokenAddress, true);
 
-        // Initialize ModuleAdd with our Addresses instance
-        moduleAdd = new ModuleAdd();
+        // Initialize SystemDeploy with our Addresses instance
+        systemDeploy = new SystemDeploy();
 
         // Calculate a future start time that is a week boundary
         // Current timestamp + time until next week boundary
@@ -49,13 +49,13 @@ contract IntegrationBase is Test {
         uint256 timeUntilNextWeekBoundary = weekInSeconds - (currentTime % weekInSeconds);
         startTime = currentTime + timeUntilNextWeekBoundary;
 
-        // Set START_TIME environment variable for deploy function in ModuleAdd
+        // Set START_TIME environment variable for deploy function in SystemDeploy
         vm.setEnv("START_TIME", vm.toString(startTime));
 
-        moduleAdd.setAddresses(addresses);
+        systemDeploy.setAddresses(addresses);
 
-        moduleAdd.deploy();
-        moduleAdd.build();
-        moduleAdd.simulate();
+        systemDeploy.deploy();
+        systemDeploy.build();
+        systemDeploy.simulate();
     }
 }

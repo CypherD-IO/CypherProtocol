@@ -18,13 +18,13 @@ import {DistributionModule} from "src/DistributionModule.sol";
 
 /// start time must be set to a week boundary
 ///  example usage for local testing:
-///     START_TIME=1743638400 forge script ModuleAdd -vvv --rpc-url base
+///     START_TIME=1743638400 forge script SystemDeploy -vvv --rpc-url base
 
 ///  mainnet usage:
 ///  please note the deployer EOA in 8453.json must be the same as the account broadcasting this transaction
-///     START_TIME=1743638400 DO_UPDATE_JSON=true forge script ModuleAdd -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
+///     START_TIME=1743638400 DO_UPDATE_JSON=true forge script SystemDeploy -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
 
-contract ModuleAdd is MultisigProposal {
+contract SystemDeploy is MultisigProposal {
     /// @notice returns the name of the proposal
     function name() public pure override returns (string memory) {
         return "CIP-00";
@@ -37,7 +37,9 @@ contract ModuleAdd is MultisigProposal {
     modifier addressModifier() {
         if (address(addresses) == address(0)) {
             uint256[] memory chainIds = new uint256[](1);
-            chainIds[0] = 8453;
+            /// lock to whichever chain is being used
+            require(block.chainid == 8453 || block.chainid == 84532, "Chain ID must be base or base sepolia");
+            chainIds[0] = block.chainid;
             addresses = new Addresses("addresses", chainIds);
         }
         _;
@@ -61,8 +63,21 @@ contract ModuleAdd is MultisigProposal {
         }
 
         if (!addresses.isAddressSet("ELECTION")) {
-            Election election =
-                new Election(addresses.getAddress("GOVERNOR_MULTISIG"), addresses.getAddress("VOTING_ESCROW"));
+            (bytes32[] memory startingCandidates, string[] memory startingBribeTokenIdentifiers) =
+                getCandidatesAndTokens("genesis/election.json");
+
+            address[] memory startingBribeTokens = new address[](startingBribeTokenIdentifiers.length);
+            for (uint256 i = 0; i < startingBribeTokenIdentifiers.length; i++) {
+                startingBribeTokens[i] = addresses.getAddress(startingBribeTokenIdentifiers[i]);
+            }
+
+            Election election = new Election(
+                addresses.getAddress("GOVERNOR_MULTISIG"),
+                addresses.getAddress("VOTING_ESCROW"),
+                startingCandidates,
+                startingBribeTokens
+            );
+
             addresses.addAddress("ELECTION", address(election), true);
         }
 
@@ -141,5 +156,13 @@ contract ModuleAdd is MultisigProposal {
 
         VotingEscrow voteEscrow = VotingEscrow(addresses.getAddress("VOTING_ESCROW"));
         assertEq(address(voteEscrow.cypher()), addresses.getAddress("CYPHER_TOKEN"), "Cypher Token not set");
+    }
+
+    function getCandidatesAndTokens(string memory path) public view returns (bytes32[] memory, string[] memory) {
+        string memory fileContents = vm.readFile(path);
+        bytes32[] memory candidates = vm.parseJsonBytes32Array(fileContents, ".candidates");
+        string[] memory tokens = vm.parseJsonStringArray(fileContents, ".tokens");
+
+        return (candidates, tokens);
     }
 }
