@@ -29,7 +29,6 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     // --- Storage ---
 
     uint256 public nextId;
-    uint256 public supply;
     uint256 public epoch;
     uint256 public indefiniteLockBalance;
     mapping(uint256 tokenId => LockedBalance) public locked;
@@ -105,7 +104,6 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         address tokenOwner = _ownerOf(tokenId);
         _burn(tokenId);
         delete locked[tokenId];
-        supply -= value;
 
         _checkpoint(tokenId, lockedBalance, LockedBalance(0, 0, false));
 
@@ -274,8 +272,6 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         _checkpoint(tokenId, lockedBalance, newLockedBalance);
 
         if (value != 0) {
-            supply += value;
-
             // The Cypher token is fully ERC20-compliant, so no need for safeTransferFrom().
             cypher.transferFrom(msg.sender, address(this), value);
         }
