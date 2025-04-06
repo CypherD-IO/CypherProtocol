@@ -491,6 +491,70 @@ contract VotingEscrowUnitTest is Test {
         assertEq(ve.balanceOfAt(id, ts), 1e18);
     }
 
+    function testLockIndefiniteAuthorization() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        address other = address(0x1234);
+        assert(other != address(this));
+
+        vm.startPrank(other);
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InsufficientApproval.selector, other, id));
+        ve.lockIndefinite(id);
+        vm.stopPrank();
+
+        ve.approve(address(other), id);
+
+        ve.lockIndefinite(id);
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(id);
+        assertEq(amount, 1e18);
+        assertEq(end, 0);
+        assertTrue(isIndefinite);
+        assertEq(ve.indefiniteLockBalance(), amount.toUint256());
+    }
+
+    function testLockIndefiniteReentrancy() public {
+        ReenteringToken token = new ReenteringToken();
+        ve = new VotingEscrow(address(token));
+        token.mint(address(this), 2e18);
+        token.approve(address(ve), type(uint256).max);
+        vm.warp(INIT_TIMESTAMP);
+
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        ReenteringActor reenterer = new ReenteringActor();
+        reenterer.setTarget(address(ve));
+
+        bytes memory lockIndefiniteData = abi.encodeWithSelector(IVotingEscrow.lockIndefinite.selector, id);
+        bytes memory makeCallData = abi.encodeWithSelector(ReenteringActor.makeCall.selector, lockIndefiniteData);
+        token.setCall(address(reenterer), makeCallData);
+        ve.approve(address(reenterer), id);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        ve.createLock(1e18, 8 * VOTE_PERIOD);
+    }
+
+    function testLockIndefiniteTokenDoesNotExist() public {
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, 7));
+        ve.lockIndefinite(7);
+    }
+
+    function testLockIndefiniteAlreadyIndefinite() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        ve.lockIndefinite(id);
+
+        vm.expectRevert(IVotingEscrow.LockedIndefinitely.selector);
+        ve.lockIndefinite(id);
+    }
+
+    function testLockIndefiniteLockExpired() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        (, uint256 end,) = ve.locked(id);
+        vm.warp(end);
+
+        vm.expectRevert(IVotingEscrow.LockExpired.selector);
+        ve.lockIndefinite(id);
+    }
+
     function testUnlockIndefiniteBasic() public {
         uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
 
