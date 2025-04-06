@@ -3,20 +3,23 @@ pragma solidity =0.8.28;
 
 import "forge-std/Test.sol";
 
+import {IElection} from "src/interfaces/IElection.sol";
+
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
-import {IElection} from "src/interfaces/IElection.sol";
 import {CypherToken} from "src/CypherToken.sol";
 import {Election} from "src/Election.sol";
 import {VotingEscrow} from "src/VotingEscrow.sol";
 import {TestToken} from "test/mocks/TestToken.sol";
 import {ReenteringToken} from "test/mocks/ReenteringToken.sol";
 
-contract ElectionUnitTest is Test {
+contract ElectionTest is Test {
+    bytes32 constant STARTING_CANDIDATE = keccak256(hex"ffffff");
     bytes32 constant CANDIDATE1 = keccak256(hex"f833a28e");
     bytes32 constant CANDIDATE2 = keccak256(hex"22222222");
     bytes32 constant CANDIDATE3 = keccak256(hex"333333");
+
+    address constant STARTING_BRIBE_TOKEN = address(123456789);
     address constant USER1 = address(0x123456789);
     address constant USER2 = address(0x987654321);
     uint256 private constant VOTE_PERIOD = 2 weeks;
@@ -32,12 +35,19 @@ contract ElectionUnitTest is Test {
         ve = new VotingEscrow(address(cypher));
         cypher.approve(address(ve), type(uint256).max);
         vm.warp(T0);
-        election = new Election(address(this), address(ve));
+        bytes32[] memory startingCandidate = new bytes32[](1);
+        startingCandidate[0] = STARTING_CANDIDATE;
+
+        address[] memory startingBribeToken = new address[](1);
+        startingBribeToken[0] = STARTING_BRIBE_TOKEN;
+        election = new Election(address(this), address(ve), startingCandidate, startingBribeToken);
     }
 
     function testConstruction() public view {
         assertEq(election.owner(), address(this));
         assertEq(address(election.ve()), address(ve));
+        assertTrue(election.isCandidate(STARTING_CANDIDATE));
+        assertTrue(election.isBribeToken(STARTING_BRIBE_TOKEN));
     }
 
     function testEnableDisableCandiate() public {

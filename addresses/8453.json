@@ -1,7 +1,12 @@
 [
   {
-    "addr": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "addr": "0xA88594D404727625A9437C3f886C7643872296AE",
     "name": "CYPHER_TOKEN",
+    "isContract": true
+  },
+  {
+    "addr": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "name": "USDC_TOKEN",
     "isContract": true
   },
   {

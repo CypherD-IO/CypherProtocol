@@ -5,21 +5,19 @@ import {Addresses} from "lib/forge-proposal-simulator/addresses/Addresses.sol";
 
 import "forge-std/Test.sol";
 
-import {ModuleAdd} from "script/ModuleAdd.s.sol";
+import {SystemDeploy} from "script/SystemDeploy.s.sol";
 import {CypherToken} from "src/CypherToken.sol";
 import {CypherTokenDeploy} from "script/CypherTokenDeploy.s.sol";
 
-/// @title ModuleAddIntegration
-/// @notice Integration test for ModuleAdd script against a live system
-/// @dev Run with: forge test --match-path test/integration/ModuleAdd.t.sol -vvv --fork-url $RPC_URL
-contract ModuleAddIntegrationTest is Test {
+/// @title ModuleIntegrationBase
+contract IntegrationBase is Test {
     Addresses public addresses;
     CypherToken public cypherToken;
-    ModuleAdd public moduleAdd;
+    SystemDeploy public systemDeploy;
 
     // Mock addresses for testing
-    address public constant GOVERNOR_MULTISIG = address(0x1111);
-    address public constant TREASURY_MULTISIG = address(0x2222);
+    address public GOVERNOR_MULTISIG;
+    address public TREASURY_MULTISIG;
 
     // The timestamp when incentives will start (must be a week boundary)
     uint256 public startTime;
@@ -30,7 +28,9 @@ contract ModuleAddIntegrationTest is Test {
         chainIds[0] = 8453;
         addresses = new Addresses("addresses", chainIds);
 
-        /// TODO remove this completely once the cypher token has been deployed
+        GOVERNOR_MULTISIG = addresses.getAddress("GOVERNOR_MULTISIG");
+        TREASURY_MULTISIG = addresses.getAddress("TREASURY_MULTISIG");
+
         // Deploy CypherToken
         CypherTokenDeploy cypherTokenDeploy = new CypherTokenDeploy();
         address tokenAddress = cypherTokenDeploy.deploy(TREASURY_MULTISIG);
@@ -39,8 +39,8 @@ contract ModuleAddIntegrationTest is Test {
         // Add CypherToken to Addresses
         addresses.changeAddress("CYPHER_TOKEN", tokenAddress, true);
 
-        // Initialize ModuleAdd with our Addresses instance
-        moduleAdd = new ModuleAdd();
+        // Initialize SystemDeploy with our Addresses instance
+        systemDeploy = new SystemDeploy();
 
         // Calculate a future start time that is a week boundary
         // Current timestamp + time until next week boundary
@@ -49,25 +49,13 @@ contract ModuleAddIntegrationTest is Test {
         uint256 timeUntilNextWeekBoundary = weekInSeconds - (currentTime % weekInSeconds);
         startTime = currentTime + timeUntilNextWeekBoundary;
 
-        // Set START_TIME environment variable for deploy function in ModuleAdd
+        // Set START_TIME environment variable for deploy function in SystemDeploy
         vm.setEnv("START_TIME", vm.toString(startTime));
 
-        moduleAdd.setAddresses(addresses);
+        systemDeploy.setAddresses(addresses);
 
-        /// TODO remove this completely once the cypher smart contract system has been deployed
-        moduleAdd.deploy();
-        moduleAdd.build();
-        moduleAdd.simulate();
-    }
-
-    function testValidateSuccess() public view {
-        // Call validate function
-        moduleAdd.validate();
-
-        // Check if the distribution module is enabled
-        assertTrue(addresses.isAddressSet("DISTRIBUTION_MODULE"), "Distribution module not set");
-
-        // Check if the reward distributor is set
-        assertTrue(addresses.isAddressSet("REWARD_DISTRIBUTOR"), "Reward distributor not set");
+        systemDeploy.deploy();
+        systemDeploy.build();
+        systemDeploy.simulate();
     }
 }
