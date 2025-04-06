@@ -260,7 +260,6 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     function _depositFor(uint256 tokenId, uint256 value, uint256 unlockTime, LockedBalance memory lockedBalance)
         internal
     {
-        supply += value;
         LockedBalance memory newLockedBalance;
         newLockedBalance.amount = lockedBalance.amount + value.toInt256().toInt128();
         if (unlockTime > 0) {
@@ -275,6 +274,8 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         _checkpoint(tokenId, lockedBalance, newLockedBalance);
 
         if (value != 0) {
+            supply += value;
+
             // The Cypher token is fully ERC20-compliant, so no need for safeTransferFrom().
             cypher.transferFrom(msg.sender, address(this), value);
         }

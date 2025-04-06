@@ -239,12 +239,12 @@ contract VotingEscrowUnitTest is Test {
     function testIncreaseUnlockTimeBasic() public {
         uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
 
-        (, uint256 end,) = ve.locked(1);
+        (, uint256 end,) = ve.locked(id);
 
         // advance by one vote period
         ve.increaseUnlockTime(id, end + VOTE_PERIOD);
 
-        (, uint256 newEnd,) = ve.locked(1);
+        (, uint256 newEnd,) = ve.locked(id);
         assertEq(newEnd, end + VOTE_PERIOD);
 
         // confirm rounding down to nearest vote period
@@ -252,6 +252,114 @@ contract VotingEscrowUnitTest is Test {
 
         (, uint256 newerEnd,) = ve.locked(1);
         assertEq(newerEnd, newEnd + VOTE_PERIOD);
+    }
+
+    function testIncreaseUnlockTimeAuthorization() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        (, uint256 end,) = ve.locked(id);
+
+        address other = address(0x1234);
+        assert(other != address(this));
+
+        vm.startPrank(other);
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InsufficientApproval.selector, other, id));
+        ve.increaseUnlockTime(id, end + 3 * VOTE_PERIOD);
+        vm.stopPrank();
+
+        ve.approve(other, id);
+
+        vm.startPrank(other);
+        ve.increaseUnlockTime(id, end + 3 * VOTE_PERIOD);
+        vm.stopPrank();
+
+        (, uint256 newEnd,) = ve.locked(id);
+        assertEq(newEnd, (end + 3 * VOTE_PERIOD) / VOTE_PERIOD * VOTE_PERIOD);
+    }
+
+    function testIncreaseUnlockTimeReentrancy() public {
+        ReenteringToken token = new ReenteringToken();
+        ve = new VotingEscrow(address(token));
+        token.mint(address(this), 2e18);
+        token.approve(address(ve), type(uint256).max);
+        vm.warp(INIT_TIMESTAMP);
+
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        (, uint256 end,) = ve.locked(id);
+
+        ReenteringActor reenterer = new ReenteringActor();
+        reenterer.setTarget(address(ve));
+
+        bytes memory increaseUnlockTimeData =
+            abi.encodeWithSelector(IVotingEscrow.increaseUnlockTime.selector, id, end + 2 * VOTE_PERIOD);
+        bytes memory makeCallData = abi.encodeWithSelector(ReenteringActor.makeCall.selector, increaseUnlockTimeData);
+        token.setCall(address(reenterer), makeCallData);
+        ve.approve(address(reenterer), id);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        ve.createLock(1e18, 8 * VOTE_PERIOD);
+    }
+
+    function testIncreaseUnlockTimeIndefinite() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        ve.lockIndefinite(id);
+
+        (, uint256 end,) = ve.locked(id);
+
+        vm.expectRevert(IVotingEscrow.LockedIndefinitely.selector);
+        ve.increaseUnlockTime(id, end + 9 * VOTE_PERIOD);
+    }
+
+    function testIncreaseUnlockTimeLockExpired() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        (, uint256 end,) = ve.locked(id);
+
+        vm.warp(end);
+        vm.expectRevert(IVotingEscrow.LockExpired.selector);
+        ve.increaseUnlockTime(id, end + 9 * VOTE_PERIOD);
+
+        vm.warp(end + 1);
+        vm.expectRevert(IVotingEscrow.LockExpired.selector);
+        ve.increaseUnlockTime(id, end + 9 * VOTE_PERIOD);
+    }
+
+    function testIncreaseUnlockTimeDurationExceedsMaximum() public {
+        vm.warp(INIT_TIMESTAMP / VOTE_PERIOD * VOTE_PERIOD);
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        (, uint256 end,) = ve.locked(id);
+
+        // This will be exactly the maximum duration, and will succeed.
+        ve.increaseUnlockTime(id, end + 50 * VOTE_PERIOD);
+
+        // One more vote period is too many
+        vm.expectRevert(IVotingEscrow.LockDurationExceedsMaximum.selector);
+        ve.increaseUnlockTime(id, end + 51 * VOTE_PERIOD);
+    }
+
+    function testIncreaseUnlockTimeNotAfterOld() public {
+        uint256 id = ve.createLock(1e18, 20 * VOTE_PERIOD);
+
+        (, uint256 end,) = ve.locked(id);
+
+        vm.expectRevert(IVotingEscrow.NewUnlockTimeNotAfterOld.selector);
+        ve.increaseUnlockTime(id, end);
+
+        // This still fails due to rounding the end time down to the nearest vote period.
+        vm.expectRevert(IVotingEscrow.NewUnlockTimeNotAfterOld.selector);
+        ve.increaseUnlockTime(id, end + VOTE_PERIOD / 2);
+
+        vm.expectRevert(IVotingEscrow.NewUnlockTimeNotAfterOld.selector);
+        ve.increaseUnlockTime(id, end - 2 * VOTE_PERIOD);
+    }
+
+    function testIncreaseUnlockTimeNewTimeInPast() public {
+        uint256 id = ve.createLock(1e18, 2 * VOTE_PERIOD);
+
+        (, uint256 end,) = ve.locked(id);
+
+        vm.expectRevert(IVotingEscrow.NewUnlockTimeNotAfterOld.selector);
+        ve.increaseUnlockTime(id, end - 3 * VOTE_PERIOD);
     }
 
     function testWithdrawBasic() public {
