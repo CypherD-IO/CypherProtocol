@@ -696,6 +696,118 @@ contract VotingEscrowUnitTest is Test {
         assertTrue(!isIndefinite);
     }
 
+    function testMergeAuthorization() public {
+        uint256 idFrom = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        uint256 idTo = ve.createLock(3e18, 5 * VOTE_PERIOD);
+
+        address other = address(0x1234);
+        assert(other != address(this));
+
+        vm.startPrank(other);
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InsufficientApproval.selector, other, idFrom));
+        ve.merge(idFrom, idTo);
+        vm.stopPrank();
+
+        ve.approve(other, idTo);
+
+        vm.startPrank(other);
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InsufficientApproval.selector, other, idFrom));
+        ve.merge(idFrom, idTo);
+        vm.stopPrank();
+
+        ve.approve(address(0), idTo);
+        ve.approve(other, idFrom);
+
+        vm.startPrank(other);
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InsufficientApproval.selector, other, idTo));
+        ve.merge(idFrom, idTo);
+        vm.stopPrank();
+
+        ve.approve(other, idTo);
+
+        vm.startPrank(other);
+        ve.merge(idFrom, idTo);
+        vm.stopPrank();
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(idTo);
+        assertEq(amount, 4e18);
+        assertEq(end, ((block.timestamp + 5 * VOTE_PERIOD) / VOTE_PERIOD) * VOTE_PERIOD);
+        assertTrue(!isIndefinite);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.ownerOf(idFrom);
+
+        (amount, end, isIndefinite) = ve.locked(idFrom);
+        assertEq(amount, 0);
+        assertEq(end, 0);
+        assertTrue(!isIndefinite);
+    }
+
+    function testMergeReentrancy() public {
+        ReenteringToken token = new ReenteringToken();
+        ve = new VotingEscrow(address(token));
+        token.mint(address(this), 100e18);
+        token.approve(address(ve), type(uint256).max);
+        vm.warp(INIT_TIMESTAMP);
+
+        uint256 idFrom = ve.createLock(5e18, 3 * VOTE_PERIOD);
+        uint256 idTo = ve.createLock(11e18, 8 * VOTE_PERIOD);
+
+        ReenteringActor reenterer = new ReenteringActor();
+        reenterer.setTarget(address(ve));
+
+        bytes memory mergeData = abi.encodeWithSelector(IVotingEscrow.merge.selector, idFrom, idTo);
+        bytes memory makeCallData = abi.encodeWithSelector(ReenteringActor.makeCall.selector, mergeData);
+        token.setCall(address(reenterer), makeCallData);
+        ve.approve(address(reenterer), idFrom);
+        ve.approve(address(reenterer), idTo);
+
+        vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
+        ve.createLock(1e18, 42 * VOTE_PERIOD);
+    }
+
+    function testMergeIdenticalIds() public {
+        uint256 id = ve.createLock(1e18, 10 * VOTE_PERIOD);
+        vm.expectRevert(IVotingEscrow.IdenticalTokenIds.selector);
+        ve.merge(id, id);
+    }
+
+    function testMergeNonexistence() public {
+        uint256 idFrom = 7;
+        uint256 idTo = 99;
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.merge(idFrom, idTo);
+
+        idFrom = ve.createLock(3e18, 6 * VOTE_PERIOD);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idTo));
+        ve.merge(idFrom, idTo);
+
+        idTo = ve.createLock(7e18, 25 * VOTE_PERIOD);
+        idFrom = 77;
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.merge(idFrom, idTo);
+    }
+
+    function testMergeToExpired() public {
+        uint256 idFrom = ve.createLock(1e18, 22 * VOTE_PERIOD);
+        uint256 idTo = ve.createLock(3e18, 5 * VOTE_PERIOD);
+        (, uint256 end,) = ve.locked(idTo);
+        vm.warp(end);
+        vm.expectRevert(IVotingEscrow.LockExpired.selector);
+        ve.merge(idFrom, idTo);
+    }
+
+    function testMergeFromIndefinite() public {
+        uint256 idFrom = ve.createLock(1e18, 2 * VOTE_PERIOD);
+        uint256 idTo = ve.createLock(3e18, 5 * VOTE_PERIOD);
+        ve.lockIndefinite(idFrom);
+        vm.expectRevert(IVotingEscrow.LockedIndefinitely.selector);
+        ve.merge(idFrom, idTo);
+    }
+
     function testMergeFuzz(
         uint256 startTimeSeed,
         uint256 fromValueSeed,
