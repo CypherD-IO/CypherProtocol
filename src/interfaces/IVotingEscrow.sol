@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
+import {ICypherToken} from "src/interfaces/ICypherToken.sol";
+
 interface IVotingEscrow is IERC721 {
     // --- Data Types ---
 
@@ -71,12 +73,14 @@ interface IVotingEscrow is IERC721 {
     /// @notice Lock tokens to create a veNFT with a given lock duration.
     /// @param value Amount of tokens to lock
     /// @param duration Seconds to lock for (will be rounded down to nearest voting period)
+    /// @return The id of the created veNFT
     function createLock(uint256 value, uint256 duration) external returns (uint256);
 
     /// @notice Lock tokens to create a veNFT with a given lock duration and assign it to a specific address.
     /// @param value Amount of tokens to lock
     /// @param duration Seconds to lock for (will be rounded down to nearest voting period)
     /// @param to Address that will receive the minted NFT
+    /// @return The id of the created veNFT
     function createLockFor(uint256 value, uint256 duration, address to) external returns (uint256);
 
     /// @notice Add tokens to an existing veNFT. Any address may add tokens to any veNFT.
@@ -107,17 +111,77 @@ interface IVotingEscrow is IERC721 {
 
     // --- Views ---
 
+    /// @notice The Cypher token.
+    /// @return The Cypher token interface.
+    function cypher() external view returns (ICypherToken);
+
+    /// @notice The id that will be assigned to the next created veNFT.
+    /// @return The id of the next veNFT (returned by either `createLock` or `createLockFor`)
+    function nextId() external view returns (uint256);
+
+    /// @notice Vote period index.
+    /// @return The latest vote period index.
+    function epoch() external view returns (uint256);
+
+    /// @notice The quantity of Cypher tokens that are locked indefinitely.
+    /// @return The total amount of indefinitely locked tokens.
+    function indefiniteLockBalance() external view returns (uint256);
+
+    /// @notice Fetch the defining data of veNFT.
+    /// @param tokenId The id of the veNFT to query data for.
+    /// @return amount The quantity of Cypher locked.
+    /// @return end The timestamp at which the veNFT will be expired
+    /// @return isIndefinite A flag indicating whether or not the position is locked indefinitely
+    function locked(uint256 tokenId) external view returns (int128 amount, uint256 end, bool isIndefinite);
+
+    /// @notice Fetch the slope change that must be applied at a given timestamp.
+    /// @dev Will return zero except possibly at timestamps that are a multiple of the interval between vote periods.
+    /// @param timestamp The timestamp to query for
+    /// @return slopeChange The change in the rate of overall vote weight decay at the given timestamp
+    function slopeChanges(uint256 timestamp) external view returns (int128 slopeChange);
+
+    /// @notice Fetch the global checkpoint data for a given vote period index
+    /// @param epoch The vote period index to query for
+    /// @return bias Total effective voting weight at the given epoch
+    /// @return slope Quantity by which voting weight decreases per-second until the next non-zero slope change
+    /// @return ts Timestamp of the epoch (multiple of the vote period interval)
+    /// @return indefinite Total amount of indefinitely locked tokens at the given epoch
+    function pointHistory(uint256 epoch)
+        external
+        view
+        returns (int128 bias, int128 slope, uint256 ts, uint256 indefinite);
+
+    /// @notice Fetch index of the last checkpoint recorded for a given veNFT
+    /// @param tokenId Id of the veNFT to query the token epoch of
+    /// @return tokenEpoch Index of the last checkpoint for the given veNFT
+    function tokenPointEpoch(uint256 tokenId) external view returns (uint256 tokenEpoch);
+
+    /// @notice Fetch token checkpoint data at a given token checkpoint index
+    /// @param tokenId Id of the veNFT to query checkpoint data of
+    /// @param tokenEpoch The index of the checkpoint to fetch
+    /// @return bias Effective voting weight at the token checkpoint (if not locked indefinitely)
+    /// @return slope Quantity by which the voting weight of the position is decreasing per-second until the next token checkpoint
+    /// @return ts The timestamp of the token checkpoint (not necessarily a multiple of the voting period, unlike global checkpoints)
+    /// @return indefinite The quantity of indefinitely locked tokens belonging to the veNFT
+    function tokenPointHistory(uint256 tokenId, uint256 tokenEpoch)
+        external
+        view
+        returns (int128 bias, int128 slope, uint256 ts, uint256 indefinite);
+
     /// @notice Determine whether an address has authority over a token's voting power.
     /// @param actor The entity attempting to vote using the token's voting power.
     /// @param tokenId The id of the vote escrowed position the actor wishes to use the voting power of.
-    function isAuthorizedToVoteFor(address actor, uint256 tokenId) external view returns (bool);
+    /// @return isAuthorized Whether the actor can vote on behalf of the tokenId
+    function isAuthorizedToVoteFor(address actor, uint256 tokenId) external view returns (bool isAuthorized);
 
-    /// @notice Calculate total voting power
+    /// @notice Calculate total voting power (not including indefinitely locked positions)
     /// @param timestamp Time at which to caluclate voting power
-    function totalSupplyAt(uint256 timestamp) external view returns (uint256);
+    /// @return totalSupply The total decaying vote weight at the given timestamp
+    function totalSupplyAt(uint256 timestamp) external view returns (uint256 totalSupply);
 
     /// @notice Calculate a position's total voting power.
     /// @param tokenId Id of the token to calculate the voting power for
     /// @param timestamp Time at which to caluclate voting power
+    /// @return balanceOf Effective voting weight of the veNFT at the given timestamp (does account for indefinite versus decaying locks)
     function balanceOfAt(uint256 tokenId, uint256 timestamp) external view returns (uint256);
 }
