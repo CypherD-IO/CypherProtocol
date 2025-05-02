@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.28;
+pragma solidity =0.8.28;
 
-import "./interfaces/ICypherToken.sol";
-import "./interfaces/IVotingEscrow.sol";
+import {ICypherToken} from "./interfaces/ICypherToken.sol";
+import {IVotingEscrow} from "./interfaces/IVotingEscrow.sol";
+
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /// @title Voting Escrow
-/// @author Heavily inspired by Curve's VotingEscrow (https://github.com/curvefi/curve-dao-contracts/blob/567927551903f71ce5a73049e077be87111963cc/contracts/VotingEscrow.vy)
+/// @author Heavily inspired by Curve's VotingEscrow (https://github.com/curvefi/curve-dao-contracts/blob/567927551903f71ce5a73049e077be87111963cc/contracts/VotingEscrow.vy). In fact, mostly a direct translation from Vyper to Solidity.
 contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     using SafeCast for uint256;
     using SafeCast for int256;
@@ -28,7 +29,6 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     // --- Storage ---
 
     uint256 public nextId;
-    uint256 public supply;
     uint256 public epoch;
     uint256 public indefiniteLockBalance;
     mapping(uint256 tokenId => LockedBalance) public locked;
@@ -104,7 +104,6 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
         address tokenOwner = _ownerOf(tokenId);
         _burn(tokenId);
         delete locked[tokenId];
-        supply -= value;
 
         _checkpoint(tokenId, lockedBalance, LockedBalance(0, 0, false));
 
@@ -259,7 +258,6 @@ contract VotingEscrow is IVotingEscrow, ERC721, ReentrancyGuard {
     function _depositFor(uint256 tokenId, uint256 value, uint256 unlockTime, LockedBalance memory lockedBalance)
         internal
     {
-        supply += value;
         LockedBalance memory newLockedBalance;
         newLockedBalance.amount = lockedBalance.amount + value.toInt256().toInt128();
         if (unlockTime > 0) {

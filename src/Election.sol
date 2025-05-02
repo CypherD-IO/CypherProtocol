@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.28;
+pragma solidity =0.8.28;
 
 import {IElection} from "./interfaces/IElection.sol";
 import {IVotingEscrow} from "./interfaces/IVotingEscrow.sol";
@@ -198,6 +198,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     // --- Views ---
 
+    /// @inheritdoc IElection
     function hasClaimedBribe(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
         external
         view
@@ -208,6 +209,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         return _isBribeClaimed(tokenId, bribeToken, candidate, periodStart);
     }
 
+    /// @inheritdoc IElection
     function claimableAmount(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
         external
         view

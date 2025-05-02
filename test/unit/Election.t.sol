@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: BUSL-1.1
-pragma solidity 0.8.28;
+// SPDX-License-Identifier: MIT
+pragma solidity =0.8.28;
 
 import "forge-std/Test.sol";
 
@@ -7,7 +7,6 @@ import {IElection} from "src/interfaces/IElection.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-
 import {CypherToken} from "src/CypherToken.sol";
 import {Election} from "src/Election.sol";
 import {VotingEscrow} from "src/VotingEscrow.sol";
