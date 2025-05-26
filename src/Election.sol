@@ -2,6 +2,7 @@
 pragma solidity =0.8.28;
 
 import {IElection} from "./interfaces/IElection.sol";
+import {IVeNftUsageOracle} from "./interfaces/IVeNftUsageOracle.sol";
 import {IVotingEscrow} from "./interfaces/IVotingEscrow.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -105,7 +106,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         uint256 periodStart = _votingPeriodStart(block.timestamp);
         if (lastVoteTime[tokenId] >= periodStart) revert AlreadyVoted();
 
-        uint256 power = ve.balanceOfAt(tokenId, periodStart);
+        uint256 power = ve.balanceOfAt(tokenId, block.timestamp);
         if (power == 0) revert NoVotingPower();
 
         lastVoteTime[tokenId] = block.timestamp;
@@ -235,6 +236,11 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         if (_isBribeClaimed(tokenId, bribeToken, candidate, periodStart)) return 0;
 
         return totalBribeAmount * tokenVotes / totalVotes;
+    }
+
+    /// @inheritdoc IVeNftUsageOracle
+    function isInUse(uint256 tokenId) external view returns (bool) {
+        return lastVoteTime[tokenId] >= _votingPeriodStart(block.timestamp);
     }
 
     // --- Internals ---

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {IVeNftUsageOracle} from "./IVeNftUsageOracle.sol";
 import {IVotingEscrow} from "./IVotingEscrow.sol";
 
-interface IElection {
+interface IElection is IVeNftUsageOracle {
     // --- Events ---
 
     event CandidateEnabled(bytes32 indexed candidate);

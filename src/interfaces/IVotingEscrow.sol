@@ -33,6 +33,8 @@ interface IVotingEscrow is IERC721 {
 
     // --- Events ---
 
+    event VeNftUsageOracleUpdated(address newOracle);
+
     event CreateLock(
         address indexed from, address indexed to, uint256 indexed tokenId, uint256 value, uint256 unlockTime
     );
@@ -67,6 +69,7 @@ interface IVotingEscrow is IERC721 {
     error NotLockedIndefinitely();
     error NewUnlockTimeNotAfterOld();
     error IdenticalTokenIds();
+    error TokenInUse(uint256 tokenId);
 
     // --- Mutations ---
 
