@@ -4,6 +4,7 @@ pragma solidity =0.8.28;
 import "forge-std/Test.sol";
 
 import {IElection} from "src/interfaces/IElection.sol";
+import {IVotingEscrow} from "src/interfaces/IVotingEscrow.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -41,6 +42,7 @@ contract ElectionTest is Test {
         address[] memory startingBribeToken = new address[](1);
         startingBribeToken[0] = STARTING_BRIBE_TOKEN;
         election = new Election(address(this), address(ve), startingCandidate, startingBribeToken);
+        ve.setVeNftUsageOracle(address(election));
     }
 
     function testConstruction() public view {
@@ -395,6 +397,97 @@ contract ElectionTest is Test {
 
         vm.expectRevert(IElection.InvalidCandidate.selector);
         election.vote(id, candidates, weights);
+    }
+
+    function testUsageOracleFunctionality() public {
+        uint256 firstPeriodStart = _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), type(uint256).max);
+        uint256 id1 = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        assertFalse(election.isInUse(id1));
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 100;
+
+        election.vote(id1, candidates, weights);
+
+        assertTrue(election.isInUse(id1));
+
+        // Move forward in time but stay within the current vote period.
+        vm.warp(firstPeriodStart + VOTE_PERIOD / 2);
+
+        // There should be no change in status.
+        assertTrue(election.isInUse(id1));
+
+        uint256 id2 = ve.createLock(2e18, MAX_LOCK_DURATION);
+
+        assertTrue(election.isInUse(id1));
+        assertFalse(election.isInUse(id2));
+
+        // simulate voting a few Base blocks after creation--still within the first period.
+        vm.warp(firstPeriodStart + VOTE_PERIOD / 2 + 10);
+        election.vote(id2, candidates, weights);
+
+        // Now both are in use.
+        assertTrue(election.isInUse(id1));
+        assertTrue(election.isInUse(id2));
+
+        // Go to the final timestamp in this vote period.
+        vm.warp(firstPeriodStart + VOTE_PERIOD - 1);
+
+        assertTrue(election.isInUse(id1));
+        assertTrue(election.isInUse(id2));
+
+        // Go to the first timestamp of the next period.
+        vm.warp(firstPeriodStart + VOTE_PERIOD);
+
+        assertFalse(election.isInUse(id1));
+        assertFalse(election.isInUse(id2));
+
+        election.vote(id1, candidates, weights);
+
+        assertTrue(election.isInUse(id1));
+        assertFalse(election.isInUse(id2));
+
+        vm.expectRevert(abi.encodeWithSelector(IVotingEscrow.TokenInUse.selector, id1));
+        ve.merge(id1, id2);
+
+        // Halfway through the second period--still cannot merge.
+        vm.warp(firstPeriodStart + 3 * VOTE_PERIOD / 2);
+
+        assertTrue(election.isInUse(id1));
+        assertFalse(election.isInUse(id2));
+
+        vm.expectRevert(abi.encodeWithSelector(IVotingEscrow.TokenInUse.selector, id1));
+        ve.merge(id1, id2);
+
+        // Third period--neither token is in use.
+        vm.warp(firstPeriodStart + 3 * VOTE_PERIOD);
+
+        assertFalse(election.isInUse(id1));
+        assertFalse(election.isInUse(id2));
+
+        election.vote(id2, candidates, weights);
+
+        assertFalse(election.isInUse(id1));
+        assertTrue(election.isInUse(id2));
+
+        // Merging an unused id into a used id is fine (but the tokens of the "from" id cannot vote in this period).
+        ve.merge(id1, id2);
+
+        assertFalse(election.isInUse(id1));
+        assertTrue(election.isInUse(id2));
+
+        // Another period forward. Neither token will be in use.
+        vm.warp(firstPeriodStart + 4 * VOTE_PERIOD);
+
+        assertFalse(election.isInUse(id1));
+        assertFalse(election.isInUse(id2));
     }
 
     function testAddBribeBasic() public {
