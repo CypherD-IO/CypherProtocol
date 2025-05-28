@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
@@ -12,6 +13,7 @@ import {CypherToken} from "src/CypherToken.sol";
 import {IVotingEscrow} from "src/interfaces/IVotingEscrow.sol";
 import {VotingEscrow} from "src/VotingEscrow.sol";
 
+import {MockVeNftUsageOracle} from "test/mocks/MockVeNftUsageOracle.sol";
 import {ReenteringActor} from "test/mocks/ReenteringActor.sol";
 import {ReenteringToken} from "test/mocks/ReenteringToken.sol";
 
@@ -33,7 +35,29 @@ contract VotingEscrowUnitTest is Test {
     }
 
     function testConstruction() public view {
+        assert(ve.owner() == address(this));
+        assert(ve.cypher() == cypher);
         assert(ve.nextId() == 1);
+        assertEq(address(ve.veNftUsageOracle()), address(0));
+    }
+
+    function testSetVeNftUsageOracle() public {
+        address oracle = address(0x8888);
+
+        assertEq(address(ve.veNftUsageOracle()), address(0));
+        vm.expectEmit(true, true, true, true);
+        emit IVotingEscrow.VeNftUsageOracleUpdated(oracle);
+        ve.setVeNftUsageOracle(oracle);
+        assertEq(address(ve.veNftUsageOracle()), oracle);
+
+        // Setting the same oracle again is fine.
+        ve.setVeNftUsageOracle(oracle);
+
+        address notOwner = address(~uint160(ve.owner()));
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+        vm.prank(notOwner);
+        ve.setVeNftUsageOracle(oracle);
     }
 
     function testCreatLockBasic() public {
@@ -661,6 +685,37 @@ contract VotingEscrowUnitTest is Test {
         assertEq(amount, 9.1e18);
         assertEq(end, 0);
         assertTrue(isIndefinite);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.ownerOf(idFrom);
+
+        (amount, end, isIndefinite) = ve.locked(idFrom);
+        assertEq(amount, 0);
+        assertEq(end, 0);
+        assertTrue(!isIndefinite);
+    }
+
+    function testMergeFromInUse() public {
+        MockVeNftUsageOracle oracle = new MockVeNftUsageOracle();
+        ve.setVeNftUsageOracle(address(oracle));
+
+        uint256 idFrom = ve.createLock(2e18, 3 * VOTE_PERIOD);
+        uint256 idTo = ve.createLock(5e18, 7 * VOTE_PERIOD);
+
+        oracle.setInUse(idFrom, true);
+
+        vm.expectRevert(abi.encodeWithSelector(IVotingEscrow.TokenInUse.selector, idFrom));
+        ve.merge(idFrom, idTo);
+
+        // Once the token is no longer in use, merging should work.
+        oracle.setInUse(idFrom, false);
+
+        ve.merge(idFrom, idTo);
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(idTo);
+        assertEq(amount, 7e18);
+        assertEq(end, ((block.timestamp + 7 * VOTE_PERIOD) / VOTE_PERIOD) * VOTE_PERIOD);
+        assertTrue(!isIndefinite);
 
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
         ve.ownerOf(idFrom);
