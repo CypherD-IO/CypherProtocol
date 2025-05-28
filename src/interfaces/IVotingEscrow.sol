@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import {ICypherToken} from "src/interfaces/ICypherToken.sol";
+import {IVeNftUsageOracle} from "./IVeNftUsageOracle.sol";
 
 interface IVotingEscrow is IERC721 {
     // --- Data Types ---
@@ -71,6 +72,12 @@ interface IVotingEscrow is IERC721 {
     error IdenticalTokenIds();
     error TokenInUse(uint256 tokenId);
 
+    // --- Admin ---
+
+    /// @notice Sets the veNFT usage oracle.
+    /// @param newOracle The address of the new oracle
+    function setVeNftUsageOracle(address newOracle) external;
+
     // --- Mutations ---
 
     /// @notice Lock tokens to create a veNFT with a given lock duration.
@@ -117,6 +124,10 @@ interface IVotingEscrow is IERC721 {
     /// @notice The Cypher token.
     /// @return The Cypher token interface.
     function cypher() external view returns (ICypherToken);
+
+    // @notice The oracle used to determine whether a veNFT is in use.
+    // @return The veNFT usgae oracle (as an interface).
+    function veNftUsageOracle() external view returns (IVeNftUsageOracle);
 
     /// @notice The id that will be assigned to the next created veNFT.
     /// @return The id of the next veNFT (returned by either `createLock` or `createLockFor`)

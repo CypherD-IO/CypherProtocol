@@ -27,7 +27,7 @@ contract VotingEscrowUnitTest is Test {
 
     function setUp() public {
         cypher = new CypherToken(address(this));
-        ve = new VotingEscrow(address(cypher));
+        ve = new VotingEscrow(address(this), address(cypher));
         cypher.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
     }
@@ -54,7 +54,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testCreateLockReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 1e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -113,7 +113,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testCreateLockForReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 1e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -190,7 +190,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testDepositForReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -278,7 +278,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testIncreaseUnlockTimeReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -410,7 +410,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testWithdrawReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -514,7 +514,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testLockIndefiniteReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -591,7 +591,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testUnlockIndefiniteReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -745,7 +745,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testMergeReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 100e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);

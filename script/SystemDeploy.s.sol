@@ -58,7 +58,8 @@ contract SystemDeploy is MultisigProposal {
         require(addresses.isAddressSet("TREASURY_MULTISIG"), "Treasury Multisig not set, cannot deploy");
 
         if (!addresses.isAddressSet("VOTING_ESCROW")) {
-            VotingEscrow voteEscrow = new VotingEscrow(addresses.getAddress("CYPHER_TOKEN"));
+            // The voting escrow is initially owned by the treasury multisig to allow a fully functional system deployment to be accomplished in one proposal.
+            VotingEscrow voteEscrow = new VotingEscrow(addresses.getAddress("TREASURY_MULTISIG"), addresses.getAddress("CYPHER_TOKEN"));
             addresses.addAddress("VOTING_ESCROW", address(voteEscrow), true);
         }
 
@@ -106,6 +107,14 @@ contract SystemDeploy is MultisigProposal {
         ModuleManager(addresses.getAddress("TREASURY_MULTISIG")).enableModule(
             addresses.getAddress("DISTRIBUTION_MODULE")
         );
+
+        VotingEscrow voteEscrow = VotingEscrow(addresses.getAddress("VOTING_ESCROW"));
+
+        // set the Election as the veNFT usage oracle on the VotingEscrow
+        voteEscrow.setVeNftUsageOracle(addresses.getAddress("ELECTION"));
+
+        // The owner of the VotingEscrow should be the governor multisig going forward.
+        voteEscrow.transferOwnership(addresses.getAddress("GOVERNOR_MULTISIG"));
     }
 
     function simulate() public override addressModifier {
@@ -156,6 +165,8 @@ contract SystemDeploy is MultisigProposal {
 
         VotingEscrow voteEscrow = VotingEscrow(addresses.getAddress("VOTING_ESCROW"));
         assertEq(address(voteEscrow.cypher()), addresses.getAddress("CYPHER_TOKEN"), "Cypher Token not set");
+        assertEq(voteEscrow.owner(), governor);
+        assertEq(address(voteEscrow.veNftUsageOracle()), address(election));
     }
 
     function getCandidatesAndTokens(string memory path) public view returns (bytes32[] memory, string[] memory) {

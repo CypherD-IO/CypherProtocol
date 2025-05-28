@@ -32,7 +32,7 @@ contract ElectionTest is Test {
 
     function setUp() public {
         cypher = new CypherToken(address(this));
-        ve = new VotingEscrow(address(cypher));
+        ve = new VotingEscrow(address(this), address(cypher));
         cypher.approve(address(ve), type(uint256).max);
         vm.warp(T0);
         bytes32[] memory startingCandidate = new bytes32[](1);
@@ -167,16 +167,18 @@ contract ElectionTest is Test {
         cypher.approve(address(ve), 4e18);
         uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
 
-        _warpToNextVotePeriodStart();
+        uint256 periodStart = _warpToNextVotePeriodStart();
 
-        uint256 power = ve.balanceOfAt(id, block.timestamp);
+        uint256 power = ve.balanceOfAt(id, periodStart);
         assert(power > 0);
 
         // warp into the middle of the period
-        vm.warp(block.timestamp + 3 * VOTE_PERIOD / 5);
+        uint256 voteTime = periodStart + 3 * VOTE_PERIOD / 5;
+        vm.warp(voteTime);
 
         // check that voting power has diminished (vote power from start of period will be used)
-        assertLt(ve.balanceOfAt(id, block.timestamp), power);
+        power = ve.balanceOfAt(id, voteTime);
+        assertLt(power, ve.balanceOfAt(id, periodStart));
 
         bytes32[] memory candidates = new bytes32[](2);
         candidates[0] = CANDIDATE1;
@@ -192,15 +194,13 @@ contract ElectionTest is Test {
         weights[1] = 3333;
         uint256 totalWeight = weights[0] + weights[1];
 
-        uint256 periodStart = _periodStart(block.timestamp);
-
         vm.expectEmit(true, true, true, true);
         emit IElection.Vote(id, address(this), candidates[0], periodStart, power * weights[0] / totalWeight);
         vm.expectEmit(true, true, true, true);
         emit IElection.Vote(id, address(this), candidates[1], periodStart, power * weights[1] / totalWeight);
         election.vote(id, candidates, weights);
 
-        assertEq(election.lastVoteTime(id), block.timestamp);
+        assertEq(election.lastVoteTime(id), voteTime);
 
         for (uint256 i = 0; i < 2; i++) {
             uint256 votes = power * weights[i] / totalWeight;

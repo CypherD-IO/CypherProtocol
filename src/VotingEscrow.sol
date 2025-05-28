@@ -30,7 +30,7 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
 
     // --- Storage ---
 
-    IVeNftUsageOracle usageOracle;
+    IVeNftUsageOracle public veNftUsageOracle;
     uint256 public nextId;
     uint256 public epoch;
     uint256 public indefiniteLockBalance;
@@ -42,7 +42,7 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
 
     // --- Constructor ---
 
-    constructor(address _cypher, address initialOwner) Ownable(initialOwner) ERC721("Cypher veNFT", "veCYPR") {
+    constructor(address initialOwner, address _cypher) Ownable(initialOwner) ERC721("Cypher veNFT", "veCYPR") {
         nextId = 1; // 0 is not a valid id
         cypher = ICypherToken(_cypher);
     }
@@ -51,7 +51,7 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
 
     /// @inheritdoc IVotingEscrow
     function setVeNftUsageOracle(address newOracle) external onlyOwner {
-        usageOracle = IVeNftUsageOracle(newOracle);
+        veNftUsageOracle = IVeNftUsageOracle(newOracle);
         emit VeNftUsageOracleUpdated(newOracle);
     }
 
@@ -168,8 +168,8 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
         _checkExistenceAndAuthorization(msg.sender, from);
         _checkExistenceAndAuthorization(msg.sender, to);
 
-        if (address(usageOracle) != address(0)) {
-            if (usageOracle.isInUse(from)) revert TokenInUse(from);
+        if (address(veNftUsageOracle) != address(0)) {
+            if (veNftUsageOracle.isInUse(from)) revert TokenInUse(from);
         }
 
         LockedBalance memory lockedTo = locked[to];
