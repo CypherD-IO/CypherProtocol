@@ -59,7 +59,8 @@ contract SystemDeploy is MultisigProposal {
 
         if (!addresses.isAddressSet("VOTING_ESCROW")) {
             // The voting escrow is initially owned by the treasury multisig to allow a fully functional system deployment to be accomplished in one proposal.
-            VotingEscrow voteEscrow = new VotingEscrow(addresses.getAddress("TREASURY_MULTISIG"), addresses.getAddress("CYPHER_TOKEN"));
+            VotingEscrow voteEscrow =
+                new VotingEscrow(addresses.getAddress("TREASURY_MULTISIG"), addresses.getAddress("CYPHER_TOKEN"));
             addresses.addAddress("VOTING_ESCROW", address(voteEscrow), true);
         }
 
