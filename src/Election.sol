@@ -15,7 +15,6 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     // --- Constants ---
 
     uint256 private constant VOTE_PERIOD = 2 weeks;
-    uint256 private constant MAX_LOCK_DURATION = 2 * 52 weeks;
 
     // --- Immutables ---
 
