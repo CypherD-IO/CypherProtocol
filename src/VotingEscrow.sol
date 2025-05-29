@@ -228,7 +228,7 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
         }
 
         if (lastPoint.bias < 0) return 0;
-        return lastPoint.bias.toUint256();
+        return lastPoint.bias.toUint256() + lastPoint.indefinite;
     }
 
     /// @inheritdoc IVotingEscrow

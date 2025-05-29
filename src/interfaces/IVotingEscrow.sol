@@ -188,7 +188,7 @@ interface IVotingEscrow is IERC721 {
     /// @return isAuthorized Whether the actor can vote on behalf of the tokenId
     function isAuthorizedToVoteFor(address actor, uint256 tokenId) external view returns (bool isAuthorized);
 
-    /// @notice Calculate total voting power (not including indefinitely locked positions)
+    /// @notice Calculate total voting power (including indefinitely locked positions).
     /// @param timestamp Time at which to caluclate voting power
     /// @return totalSupply The total decaying vote weight at the given timestamp
     function totalSupplyAt(uint256 timestamp) external view returns (uint256 totalSupply);

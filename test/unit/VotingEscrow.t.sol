@@ -513,6 +513,7 @@ contract VotingEscrowUnitTest is Test {
 
         uint256 ts = tsSeed > block.timestamp ? tsSeed : block.timestamp + tsSeed;
         assertEq(ve.balanceOfAt(id, ts), 1e18);
+        assertEq(ve.totalSupplyAt(ts), 1e18);
     }
 
     function testLockIndefiniteAuthorization() public {
