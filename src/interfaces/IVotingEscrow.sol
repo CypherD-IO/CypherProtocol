@@ -126,7 +126,7 @@ interface IVotingEscrow is IERC721 {
     function cypher() external view returns (ICypherToken);
 
     // @notice The oracle used to determine whether a veNFT is in use.
-    // @return The veNFT usgae oracle (as an interface).
+    // @return The veNFT usage oracle (as an interface).
     function veNftUsageOracle() external view returns (IVeNftUsageOracle);
 
     /// @notice The id that will be assigned to the next created veNFT.
