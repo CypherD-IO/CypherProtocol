@@ -8,5 +8,5 @@ interface IVeNftUsageOracle {
     /// @notice Informs the caller whether or not a particular veNFT's voting power is in use.
     /// @param tokenId The id of the veNFT to query the usage status of.
     /// @return inUse Whether or not the veNFT's voting power is currently in use.
-    function isInUse(uint256 tokenId) external returns (bool inUse);
+    function isInUse(uint256 tokenId) external view returns (bool inUse);
 }
