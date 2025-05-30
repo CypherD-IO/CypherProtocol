@@ -254,6 +254,18 @@ contract ElectionTest is Test {
         election.vote(id, candidates, weights);
     }
 
+    function testVoteNoCandidates() public {
+        cypher.approve(address(ve), 1e18);
+        uint256 id = ve.createLock(1e18, MAX_LOCK_DURATION);
+        _warpToNextVotePeriodStart();
+
+        bytes32[] memory candidates = new bytes32[](0);
+        uint256[] memory weights = new uint256[](0);
+
+        vm.expectRevert(IElection.NoCandidates.selector);
+        election.vote(id, candidates, weights);
+    }
+
     function testVoteArgLengthMismatch() public {
         cypher.approve(address(ve), 4e18);
         uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);

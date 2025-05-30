@@ -34,6 +34,7 @@ interface IElection is IVeNftUsageOracle {
     error BribeTokenAlreadyEnabled();
     error BribeTokenNotEnabled();
     error NotAuthorizedForVoting();
+    error NoCandidates();
     error LengthMismatch();
     error AlreadyVoted();
     error NoVotingPower();

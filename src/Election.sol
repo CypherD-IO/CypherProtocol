@@ -101,6 +101,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     /// @inheritdoc IElection
     function vote(uint256 tokenId, bytes32[] calldata candidates, uint256[] calldata weights) external nonReentrant {
         if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedForVoting();
+        if (candidates.length == 0) revert NoCandidates();
         if (candidates.length != weights.length) revert LengthMismatch();
         uint256 periodStart = _votingPeriodStart(block.timestamp);
         if (lastVoteTime[tokenId] >= periodStart) revert AlreadyVoted();
