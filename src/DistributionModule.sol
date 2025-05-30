@@ -128,12 +128,14 @@ contract DistributionModule is Ownable {
     /// @notice Calculate pending emission amount
     /// @return amount Total tokens to be emitted
     function getPendingEmission() public view returns (uint256 amount) {
-        if (block.timestamp <= lastEmissionTime) return 0;
+        uint256 _lastEmissionTime = lastEmissionTime; // gas opt
+        if (block.timestamp <= _lastEmissionTime) return 0;
 
-        uint256 elapsedWeeks = (block.timestamp - lastEmissionTime) / WEEK;
+        uint256 elapsedWeeks = (block.timestamp - _lastEmissionTime) / WEEK;
         if (elapsedWeeks == 0) return 0;
 
-        for (uint256 i = 0; i < emissionSchedules.length; i++) {
+        uint256 len = emissionSchedules.length; // gas opt
+        for (uint256 i = 0; i < len; i++) {
             EmissionSchedule memory schedule = emissionSchedules[i];
 
             // Skip if schedule hasn't started
@@ -142,16 +144,16 @@ contract DistributionModule is Ownable {
             uint256 scheduleEndTime = schedule.startTime + (schedule.durationWeeks * WEEK);
 
             // Skip if we're past this schedule's end time
-            if (lastEmissionTime >= scheduleEndTime) continue;
+            if (_lastEmissionTime >= scheduleEndTime) continue;
 
             // Calculate end time within this schedule's bounds
             uint256 effectiveEndTime = Math.min(block.timestamp, scheduleEndTime);
 
             // Calculate actual weeks to count based on effective times
             uint256 weeksToCount;
-            if (lastEmissionTime >= schedule.startTime) {
+            if (_lastEmissionTime >= schedule.startTime) {
                 // If we're starting within this schedule period
-                weeksToCount = (effectiveEndTime - lastEmissionTime) / WEEK;
+                weeksToCount = (effectiveEndTime - _lastEmissionTime) / WEEK;
             } else {
                 // If we're starting before this schedule period
                 weeksToCount = (effectiveEndTime - schedule.startTime) / WEEK;
