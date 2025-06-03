@@ -106,7 +106,8 @@ interface IVotingEscrow is IERC721 {
     /// @notice Withdraw underlying tokens. Position must not be indefinitely locked and
     ///         must be fully decayed.
     /// @param tokenId Id of the veNFT to burn and return the deposit of
-    function withdraw(uint256 tokenId) external;
+    /// @param toTokenOwner If true, send funds to the owner of the token; if false, send them to the caller
+    function withdraw(uint256 tokenId, bool toTokenOwner) external;
 
     /// @notice Locked position with no decay.
     /// @param tokenId Id of the veNFT to lock indefinitely

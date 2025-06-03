@@ -104,7 +104,7 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
     }
 
     /// @inheritdoc IVotingEscrow
-    function withdraw(uint256 tokenId) external nonReentrant {
+    function withdraw(uint256 tokenId, bool toTokenOwner) external nonReentrant {
         _checkExistenceAndAuthorization(msg.sender, tokenId);
 
         LockedBalance memory lockedBalance = locked[tokenId];
@@ -118,8 +118,13 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
 
         _checkpoint(tokenId, lockedBalance, LockedBalance(0, 0, false));
 
-        // Cypher token is ERC20-compliant, no need for safeTransfer.
-        cypher.transfer(msg.sender, value);
+        if (toTokenOwner) {
+            // Cypher token is ERC20-compliant, no need for safeTransfer.
+            cypher.transfer(tokenOwner, value);
+        } else {
+            // Cypher token is ERC20-compliant, no need for safeTransfer.
+            cypher.transfer(msg.sender, value);
+        }
 
         emit Withdraw(tokenOwner, tokenId, value);
     }
