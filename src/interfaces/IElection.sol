@@ -11,6 +11,8 @@ interface IElection is IVeNftUsageOracle {
     event CandidateDisabled(bytes32 indexed candidate);
     event BribeTokenEnabled(address indexed bribeToken);
     event BribeTokenDisabled(address indexed bribeToken);
+    event VoteRefresherAuthorized(address indexed keeper);
+    event VoteRefresherDeauthorized(address indexed keeper);
     event Vote(
         uint256 indexed tokenId,
         address indexed tokenOwner,
@@ -44,6 +46,9 @@ interface IElection is IVeNftUsageOracle {
     error NotAuthorizedToClaimBribesFor(uint256 tokenId);
     error ZeroAmount();
     error TimestampPrecedesFirstPeriod(uint256 timestamp);
+    error AlreadyVoteRefresher();
+    error NotVoteRefresher();
+    error CallerNotVoteRefresher();
 
     // --- Mutations ---
 
@@ -63,11 +68,32 @@ interface IElection is IVeNftUsageOracle {
     /// @param bribeToken The token to disable making bribes with.
     function disableBribeToken(address bribeToken) external;
 
+    /// @notice Authorize an address for refreshing user votes.
+    /// @param keeper The address to authorize.
+    function authorizeVoteRefresher(address keeper) external;
+
+    /// @notice Deauthorize an address for refreshing user votes.
+    /// @param keeper The address to deauthorize.
+    function deauthorizeVoteRefresher(address keeper) external;
+
     /// @notice Vote using the weight of `tokenId` for a set of candidates, with an assigned portion of weight for each.
     /// @param tokenId The token to assign the weight of.
     /// @param candidates The candidates to vote for.
     /// @param weights Per-candidate weight fraction.
     function vote(uint256 tokenId, bytes32[] calldata candidates, uint256[] calldata weights) external;
+
+    /// @notice Re-vote in the current period using the saved vote and weight state for the given veNFT ids.
+    /// @dev Skips veNFTs (does not revert) that have already voted in the current period.
+    /// @dev Skips veNFTs (does not revert) that have no stored voting data.
+    /// @dev Skips veNFTs (does not revert) that have no voting power due to expiry, merger, etc.
+    /// @dev Skips veNFTs (does not revert) if none of veNFTs voted candidates are valid.
+    /// @dev If some candidates are invalid, votes only for valid candidates.
+    /// @param tokenIds An array of token ids for which to attempt to refresh votes for the current period.
+    function refreshVotesFor(uint256[] calldata tokenIds) external;
+
+    /// @notice Clears stored voting data--opts out of vote refreshing. Does not undo votes in current period.
+    /// @param tokenId The id of the veNFT for which to clear vote data.
+    function clearVoteData(uint256 tokenId) external;
 
     /// @notice Claim bribes.
     /// @param tokenId Id of the token to claim bribes for.
