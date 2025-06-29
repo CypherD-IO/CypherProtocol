@@ -455,8 +455,6 @@ contract VotingEscrowUnitTest is Test {
 
         assertEq(ve.ownerOf(id), address(this));
 
-        uint256 cypherBalBefore = cypher.balanceOf(address(this));
-
         vm.startPrank(other);
         ve.withdraw(id, true);
         vm.stopPrank();

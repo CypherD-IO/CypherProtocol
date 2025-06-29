@@ -49,6 +49,7 @@ interface IElection is IVeNftUsageOracle {
     error AlreadyVoteRefresher();
     error NotVoteRefresher();
     error CallerNotVoteRefresher();
+    error NotAuthorizedToClearVoteDataFor(uint256 tokenId);
 
     // --- Mutations ---
 
@@ -151,6 +152,28 @@ interface IElection is IVeNftUsageOracle {
         external
         view
         returns (uint256 votes);
+
+    /// @notice Provides access to the array of candidates stored based on a veNFT's previous vote.
+    /// @param tokenId The id of the veNFT to query for.
+    /// @param index Index in the array of voted candidates to retrieve.
+    /// @return candidate The candidate stored at the given array index.
+    function votedCandidates(uint256 tokenId, uint256 index) external view returns (bytes32 candidate);
+
+    /// @notice Returns the number of candidates stored based on a veNFT's previous vote.
+    /// @param tokenId The id of the veNFT to query for.
+    /// @return numVotedCandidates The number of candidates voted for.
+    function numVotedCandidates(uint256 tokenId) external view returns (uint256 numVotedCandidates);
+
+    /// @notice Provides access to the array of weights stored based on a veNFT's previous vote.
+    /// @param tokenId The id of the veNFT to query for.
+    /// @param index Index in the array of voted weights to retrieve.
+    /// @return weight The weight assigned to candidate at the same index.
+    function votedWeights(uint256 tokenId, uint256 index) external view returns (uint256 weight);
+
+    /// @notice Informs the caller whether the provided address is an authorized vote refresher.
+    /// @param keeper The address to query the vote refresh authorization status of.
+    /// @return isVoteRefresher Whether the address is authorized to refresh votes.
+    function isVoteRefresher(address keeper) external view returns (bool isVoteRefresher);
 
     /// @notice Check whether a bribe has been claimed.
     /// @param tokenId Id of the veNFT to query for.

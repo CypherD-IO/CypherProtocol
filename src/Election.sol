@@ -144,9 +144,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
             if (!isCandidate[candidate]) revert InvalidCandidate();
             uint256 votesToAdd = power * weights[i] / totalWeight;
             if (votesToAdd > 0) {
-                votesForCandidateInPeriod[candidate][periodStart] += votesToAdd;
-                votesByTokenForCandidateInPeriod[tokenId][candidate][periodStart] += votesToAdd;
-                emit Vote(tokenId, ve.ownerOf(tokenId), candidate, periodStart, votesToAdd);
+                _doVote(tokenId, votesToAdd, candidate, periodStart);
             }
 
             votedCandidates[tokenId].push(candidate);
@@ -170,21 +168,20 @@ contract Election is IElection, Ownable, ReentrancyGuard {
             if (power == 0) continue;
 
             uint256 totalWeight;
+            uint256[] memory weights = new uint256[](numCandidatesVotedFor);
             for (uint256 j; j < numCandidatesVotedFor; j++) {
                 if (!isCandidate[votedCandidates[tokenId][j]]) continue;
-                totalWeight += votedWeights[tokenId][j];
+                weights[j] = votedWeights[tokenId][j];
+                totalWeight += weights[j];
             }
 
             // This check catches the "no valid candidates" edge case.
             if (totalWeight == 0) continue;
 
             for (uint256 j; j < numCandidatesVotedFor; j++) {
-                bytes32 candidate = votedCandidates[tokenId][j];
-                uint256 votesToAdd = power * votedWeights[tokenId][j] / totalWeight;
+                uint256 votesToAdd = power * weights[j] / totalWeight;
                 if (votesToAdd > 0) {
-                    votesForCandidateInPeriod[candidate][periodStart] += votesToAdd;
-                    votesByTokenForCandidateInPeriod[tokenId][candidate][periodStart] += votesToAdd;
-                    emit Vote(tokenId, ve.ownerOf(tokenId), candidate, periodStart, votesToAdd);
+                    _doVote(tokenId, votesToAdd, votedCandidates[tokenId][j], periodStart);
                 }
             }
 
@@ -194,7 +191,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     /// @inheritdoc IElection
     function clearVoteData(uint256 tokenId) external {
-        if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedToClaimBribesFor(tokenId);
+        if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedToClearVoteDataFor(tokenId);
         _clearVoteData(tokenId);
     }
 
@@ -268,6 +265,11 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     // --- Views ---
 
     /// @inheritdoc IElection
+    function numVotedCandidates(uint256 tokenId) external view returns (uint256) {
+        return votedCandidates[tokenId].length;
+    }
+
+    /// @inheritdoc IElection
     function hasClaimedBribe(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
         external
         view
@@ -319,6 +321,12 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         unchecked {
             return (timestamp / VOTE_PERIOD) * VOTE_PERIOD;
         }
+    }
+
+    function _doVote(uint256 tokenId, uint256 votesToAdd, bytes32 candidate, uint256 periodStart) private {
+        votesForCandidateInPeriod[candidate][periodStart] += votesToAdd;
+        votesByTokenForCandidateInPeriod[tokenId][candidate][periodStart] += votesToAdd;
+        emit Vote(tokenId, ve.ownerOf(tokenId), candidate, periodStart, votesToAdd);
     }
 
     function _isBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart)

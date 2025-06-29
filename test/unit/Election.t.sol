@@ -126,6 +126,25 @@ contract ElectionTest is Test {
         election.disableBribeToken(bribeTokenAddr);
     }
 
+    function testAuthorizeDeauthorizeVoteRefresher() public {
+        address keeper = address(0x123456789);
+        assertFalse(election.isVoteRefresher(keeper));
+
+        election.authorizeVoteRefresher(keeper);
+        assertTrue(election.isVoteRefresher(keeper));
+
+        // Authorizing a second time is an error
+        vm.expectRevert(IElection.AlreadyVoteRefresher.selector);
+        election.authorizeVoteRefresher(keeper);
+
+        election.deauthorizeVoteRefresher(keeper);
+        assertFalse(election.isVoteRefresher(keeper));
+
+        // Deauthorizing a second time is an error
+        vm.expectRevert(IElection.NotVoteRefresher.selector);
+        election.deauthorizeVoteRefresher(keeper);
+    }
+
     function testVoteSingleVoterPeriodStart() public {
         cypher.approve(address(ve), 4e18);
         uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
@@ -156,11 +175,14 @@ contract ElectionTest is Test {
         election.vote(id, candidates, weights);
 
         assertEq(election.lastVoteTime(id), block.timestamp);
+        assertEq(election.numVotedCandidates(id), 2);
 
         for (uint256 i = 0; i < 2; i++) {
             uint256 votes = power * weights[i] / totalWeight;
             assertEq(election.votesForCandidateInPeriod(candidates[i], block.timestamp), votes);
             assertEq(election.votesByTokenForCandidateInPeriod(id, candidates[i], block.timestamp), votes);
+            assertEq(election.votedCandidates(id, i), candidates[i]);
+            assertEq(election.votedWeights(id, i), weights[i]);
         }
     }
 
@@ -203,11 +225,14 @@ contract ElectionTest is Test {
         election.vote(id, candidates, weights);
 
         assertEq(election.lastVoteTime(id), voteTime);
+        assertEq(election.numVotedCandidates(id), 2);
 
         for (uint256 i = 0; i < 2; i++) {
             uint256 votes = power * weights[i] / totalWeight;
             assertEq(election.votesForCandidateInPeriod(candidates[i], periodStart), votes);
             assertEq(election.votesByTokenForCandidateInPeriod(id, candidates[i], periodStart), votes);
+            assertEq(election.votedCandidates(id, i), candidates[i]);
+            assertEq(election.votedWeights(id, i), weights[i]);
         }
     }
 
@@ -500,6 +525,427 @@ contract ElectionTest is Test {
 
         assertFalse(election.isInUse(id1));
         assertFalse(election.isInUse(id2));
+    }
+
+    function _refreshVotesForSetup() internal returns (uint256 firstPeriodStart, uint256[] memory ids) {
+        firstPeriodStart = _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), type(uint256).max);
+        uint256 id1 = ve.createLock(1e18, MAX_LOCK_DURATION);
+        uint256 id2 = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        election.enableCandidate(CANDIDATE1);
+        election.enableCandidate(CANDIDATE2);
+        election.enableCandidate(CANDIDATE3);
+
+        bytes32[] memory candidates = new bytes32[](2);
+        uint256[] memory weights = new uint256[](2);
+
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+        weights[0] = 50;
+        weights[1] = 50;
+        election.vote(id1, candidates, weights);
+
+        candidates[0] = CANDIDATE2;
+        candidates[1] = CANDIDATE3;
+        weights[0] = 20;
+        weights[1] = 80;
+        election.vote(id2, candidates, weights);
+
+        // authorize a keeper
+        election.authorizeVoteRefresher(address(this));
+
+        ids = new uint256[](2);
+        ids[0] = id1;
+        ids[1] = id2;
+    }
+
+    function testRefreshVotesForFunctionality() external {
+        (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        uint256 power = ve.balanceOfAt(ids[0], secondPeriodStart);
+        assertEq(power, ve.balanceOfAt(ids[1], secondPeriodStart));
+
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE1, secondPeriodStart, power * 50 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE2, secondPeriodStart, power * 50 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[1], address(this), CANDIDATE2, secondPeriodStart, power * 20 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[1], address(this), CANDIDATE3, secondPeriodStart, power * 80 / 100);
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), secondPeriodStart);
+            assertTrue(election.isInUse(id));
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, secondPeriodStart),
+                i == 0 ? power * 50 / 100 : 0
+            );
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, secondPeriodStart),
+                i == 0 ? power * 50 / 100 : power * 20 / 100
+            );
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, secondPeriodStart),
+                i == 0 ? 0 : power * 80 / 100
+            );
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, secondPeriodStart), power * 50 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, secondPeriodStart), power * 70 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), power * 80 / 100);
+
+        uint256 thirdPeriodStart = secondPeriodStart + VOTE_PERIOD;
+        vm.warp(thirdPeriodStart + 90_000); // Test a time that is not the exact start of the period.
+
+        power = ve.balanceOfAt(ids[0], thirdPeriodStart + 90_000);
+        assertEq(power, ve.balanceOfAt(ids[1], thirdPeriodStart + 90_000));
+
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE1, thirdPeriodStart, power * 50 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE2, thirdPeriodStart, power * 50 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[1], address(this), CANDIDATE2, thirdPeriodStart, power * 20 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[1], address(this), CANDIDATE3, thirdPeriodStart, power * 80 / 100);
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), thirdPeriodStart + 90_000);
+            assertTrue(election.isInUse(id));
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, thirdPeriodStart),
+                i == 0 ? power * 50 / 100 : 0
+            );
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, thirdPeriodStart),
+                i == 0 ? power * 50 / 100 : power * 20 / 100
+            );
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, thirdPeriodStart),
+                i == 0 ? 0 : power * 80 / 100
+            );
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, thirdPeriodStart), power * 50 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, thirdPeriodStart), power * 70 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, thirdPeriodStart), power * 80 / 100);
+    }
+
+    function testRefreshVotesForAuthorization() external {
+        (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        address other = address(~uint160(address(this)));
+        assertFalse(election.isVoteRefresher(other));
+
+        vm.prank(other);
+        vm.expectRevert(IElection.CallerNotVoteRefresher.selector);
+        election.refreshVotesFor(ids);
+
+        election.authorizeVoteRefresher(other);
+        election.refreshVotesFor(ids);
+    }
+
+    function testRefreshVotesForSomeAlreadyVoted() external {
+        (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        uint256 power = ve.balanceOfAt(ids[0], secondPeriodStart);
+        assertEq(power, ve.balanceOfAt(ids[1], secondPeriodStart));
+
+        bytes32[] memory candidates = new bytes32[](2);
+        uint256[] memory weights = new uint256[](2);
+
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+        weights[0] = 50;
+        weights[1] = 50;
+        election.vote(ids[0], candidates, weights);
+
+        // Since the first id has already voted, it will simply be skipped.
+
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[1], address(this), CANDIDATE2, secondPeriodStart, power * 20 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[1], address(this), CANDIDATE3, secondPeriodStart, power * 80 / 100);
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), secondPeriodStart);
+            assertTrue(election.isInUse(id));
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, secondPeriodStart),
+                i == 0 ? power * 50 / 100 : 0
+            );
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, secondPeriodStart),
+                i == 0 ? power * 50 / 100 : power * 20 / 100
+            );
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, secondPeriodStart),
+                i == 0 ? 0 : power * 80 / 100
+            );
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, secondPeriodStart), power * 50 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, secondPeriodStart), power * 70 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), power * 80 / 100);
+    }
+
+    function testRefreshVotesForSomeHaveNoVoteData() external {
+        (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        uint256 power = ve.balanceOfAt(ids[0], secondPeriodStart);
+
+        election.clearVoteData(ids[1]);
+
+        // Since the second id has no vote data, it will simply be skipped.
+
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE1, secondPeriodStart, power * 50 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE2, secondPeriodStart, power * 50 / 100);
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), i == 0 ? secondPeriodStart : firstPeriodStart);
+            if (i == 0) {
+                assertTrue(election.isInUse(id));
+            } else {
+                assertFalse(election.isInUse(id));
+            }
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, secondPeriodStart),
+                i == 0 ? power * 50 / 100 : 0
+            );
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, secondPeriodStart),
+                i == 0 ? power * 50 / 100 : 0
+            );
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, secondPeriodStart), 0);
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, secondPeriodStart), power * 50 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, secondPeriodStart), power * 50 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), 0);
+    }
+
+    function testRefreshVotesForNoPower() external {
+        (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        // Merge second into first
+        ve.merge(ids[1], ids[0]);
+
+        uint256 power = ve.balanceOfAt(ids[0], secondPeriodStart);
+
+        // Since the second id has no vote power, it will simply be skipped.
+
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE1, secondPeriodStart, power * 50 / 100);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE2, secondPeriodStart, power * 50 / 100);
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), i == 0 ? secondPeriodStart : firstPeriodStart);
+            if (i == 0) {
+                assertTrue(election.isInUse(id));
+            } else {
+                assertFalse(election.isInUse(id));
+            }
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, secondPeriodStart),
+                i == 0 ? power * 50 / 100 : 0
+            );
+            assertEq(
+                election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, secondPeriodStart),
+                i == 0 ? power * 50 / 100 : 0
+            );
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, secondPeriodStart), 0);
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, secondPeriodStart), power * 50 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, secondPeriodStart), power * 50 / 100);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), 0);
+
+        (, uint256 end,) = ve.locked(ids[0]);
+        vm.warp(end);
+
+        // After expiration, voting power is zero, now both ids are skipped.
+
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), i == 0 ? secondPeriodStart : firstPeriodStart);
+            assertFalse(election.isInUse(id));
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, end), 0);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, end), 0);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, end), 0);
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, end), 0);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, end), 0);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, end), 0);
+
+        // An id that never existed in the first place has no power either, and is a no-op.
+        ids = new uint256[](1);
+        ids[0] = 1776;
+
+        election.refreshVotesFor(ids);
+
+        assertEq(election.lastVoteTime(ids[0]), 0);
+        assertFalse(election.isInUse(ids[0]));
+        assertEq(election.votesByTokenForCandidateInPeriod(ids[0], CANDIDATE1, end), 0);
+        assertEq(election.votesByTokenForCandidateInPeriod(ids[0], CANDIDATE2, end), 0);
+        assertEq(election.votesByTokenForCandidateInPeriod(ids[0], CANDIDATE3, end), 0);
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, end), 0);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, end), 0);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, end), 0);
+    }
+
+    function testRefreshVotesForSomeCandidatesInvalid() external {
+        (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        // Disable CANDIDATE2--both ids voted for this candidate.
+        election.disableCandidate(CANDIDATE2);
+
+        uint256 power = ve.balanceOfAt(ids[0], secondPeriodStart);
+
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[0], address(this), CANDIDATE1, secondPeriodStart, power);
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[1], address(this), CANDIDATE3, secondPeriodStart, power);
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), secondPeriodStart);
+            assertTrue(election.isInUse(id));
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, secondPeriodStart), i == 0 ? power : 0);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, secondPeriodStart), 0);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, secondPeriodStart), i == 0 ? 0 : power);
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, secondPeriodStart), power);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, secondPeriodStart), 0);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), power);
+    }
+
+    function testRefreshVotesForZeroTotalWeight() external {
+        (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        // Disable all candidates--this will skip both ids.
+        election.disableCandidate(CANDIDATE1);
+        election.disableCandidate(CANDIDATE2);
+        election.disableCandidate(CANDIDATE3);
+
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), firstPeriodStart);
+            assertFalse(election.isInUse(id));
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, secondPeriodStart), 0);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, secondPeriodStart), 0);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, secondPeriodStart), 0);
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, secondPeriodStart), 0);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, secondPeriodStart), 0);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), 0);
+    }
+
+    function testClearVoteData() external {
+        uint256 firstPeriodStart = _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), type(uint256).max);
+        uint256 id = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        election.enableCandidate(CANDIDATE1);
+        election.enableCandidate(CANDIDATE2);
+
+        bytes32[] memory candidates = new bytes32[](2);
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 3000;
+        weights[1] = 7000;
+
+        assertEq(election.numVotedCandidates(id), 0);
+
+        election.vote(id, candidates, weights);
+
+        assertEq(election.numVotedCandidates(id), 2);
+        for (uint256 i; i < 2; i++) {
+            assertEq(election.votedCandidates(id, i), candidates[i]);
+            assertEq(election.votedWeights(id, i), weights[i]);
+        }
+
+        // Can clear immediately, but still recorded as having voted in this period.
+        election.clearVoteData(id);
+
+        assertEq(election.numVotedCandidates(id), 0);
+        assertEq(election.lastVoteTime(id), firstPeriodStart);
+
+        vm.expectRevert();
+        election.votedCandidates(id, 0);
+
+        vm.expectRevert();
+        election.votedWeights(id, 0);
+    }
+
+    function testClearVoteDataAuthorization() external {
+        cypher.approve(address(ve), type(uint256).max);
+        uint256 id = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        election.enableCandidate(CANDIDATE1);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 10_000;
+
+        election.vote(id, candidates, weights);
+        assertEq(election.numVotedCandidates(id), 1);
+
+        address other = address(~uint160(address(this)));
+
+        vm.prank(other);
+        vm.expectRevert(abi.encodeWithSelector(IElection.NotAuthorizedToClearVoteDataFor.selector, id));
+        election.clearVoteData(id);
+
+        ve.approve(other, id);
+
+        vm.prank(other);
+        election.clearVoteData(id);
+
+        assertEq(election.numVotedCandidates(id), 0);
     }
 
     function testAddBribeBasic() public {
