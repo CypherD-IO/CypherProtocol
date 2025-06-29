@@ -1092,6 +1092,20 @@ contract VotingEscrowUnitTest is Test {
         assertEq(ve.balanceOfAt(id2, ts), 0);
     }
 
+    function testTokensOwnedBy() public {
+        uint256[] memory ids = new uint256[](3);
+        ids[0] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[1] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[2] = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        uint256[] memory tokensOwned = ve.tokensOwnedBy(address(this));
+        assertEq(tokensOwned.length, 3);
+
+        for (uint256 i; i < 3; i++) {
+            assertEq(tokensOwned[i], ids[i]);
+        }
+    }
+
     function _get2TimesTimestamp() internal view returns (uint256) {
         return block.timestamp * 2;
     }

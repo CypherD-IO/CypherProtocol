@@ -189,6 +189,11 @@ interface IVotingEscrow is IERC721 {
     /// @return isAuthorized Whether the actor can vote on behalf of the tokenId
     function isAuthorizedToVoteFor(address actor, uint256 tokenId) external view returns (bool isAuthorized);
 
+    /// @notice Get the tokens owned by a given address as an array.
+    /// @param owner The address to fetch the owned tokens of.
+    /// @return tokenIds The array of owned tokens (empty if none are owned by the provided address).
+    function tokensOwnedBy(address owner) external view returns (uint256[] memory tokenIds);
+
     /// @notice Calculate total voting power (including indefinitely locked positions).
     /// @param timestamp Time at which to caluclate voting power
     /// @return totalSupply The total decaying vote weight at the given timestamp

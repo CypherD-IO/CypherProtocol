@@ -6,13 +6,15 @@ import {IVeNftUsageOracle} from "./interfaces/IVeNftUsageOracle.sol";
 import {IVotingEscrow} from "./interfaces/IVotingEscrow.sol";
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 /// @title Voting Escrow
 /// @author Heavily inspired by Curve's VotingEscrow (https://github.com/curvefi/curve-dao-contracts/blob/567927551903f71ce5a73049e077be87111963cc/contracts/VotingEscrow.vy). In fact, mostly a direct translation from Vyper to Solidity.
-contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
+contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ERC721Enumerable, ReentrancyGuard {
     using SafeCast for uint256;
     using SafeCast for int256;
     using SafeCast for int128;
@@ -205,9 +207,29 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
 
     // --- Views ---
 
+    /// @inheritdoc IERC165
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(IERC165, ERC721, ERC721Enumerable)
+        returns (bool)
+    {
+        return ERC721Enumerable.supportsInterface(interfaceId);
+    }
+
     /// @inheritdoc IVotingEscrow
     function isAuthorizedToVoteFor(address actor, uint256 tokenId) external view override returns (bool) {
         return _isAuthorized(_ownerOf(tokenId), actor, tokenId);
+    }
+
+    /// @inheritdoc IVotingEscrow
+    function tokensOwnedBy(address owner) external view returns (uint256[] memory tokenIds) {
+        uint256 numTokensOwned = balanceOf(owner);
+        tokenIds = new uint256[](numTokensOwned);
+        for (uint256 i; i < numTokensOwned; i++) {
+            tokenIds[i] = tokenOfOwnerByIndex(owner, i);
+        }
     }
 
     /// @inheritdoc IVotingEscrow
@@ -248,6 +270,19 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ReentrancyGuard {
     }
 
     // --- Internals ---
+
+    function _increaseBalance(address account, uint128 amount) internal virtual override(ERC721, ERC721Enumerable) {
+        ERC721Enumerable._increaseBalance(account, amount);
+    }
+
+    function _update(address to, uint256 tokenId, address auth)
+        internal
+        virtual
+        override(ERC721, ERC721Enumerable)
+        returns (address)
+    {
+        return ERC721Enumerable._update(to, tokenId, auth);
+    }
 
     function _checkExistenceAndAuthorization(address spender, uint256 tokenId) internal view {
         //  _ownerOf() requires the token to be owned, which is equivalent to existence.
