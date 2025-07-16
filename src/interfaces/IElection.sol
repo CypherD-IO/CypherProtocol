@@ -13,6 +13,7 @@ interface IElection is IVeNftUsageOracle {
     event BribeTokenDisabled(address indexed bribeToken);
     event VoteRefresherAuthorized(address indexed keeper);
     event VoteRefresherDeauthorized(address indexed keeper);
+    event MaxVotedCandidatesSet(uint256 newMaxVotedCandidates);
     event Vote(
         uint256 indexed tokenId,
         address indexed tokenOwner,
@@ -36,11 +37,14 @@ interface IElection is IVeNftUsageOracle {
     error BribeTokenAlreadyEnabled();
     error BribeTokenNotEnabled();
     error NotAuthorizedForVoting();
+    error ZeroMaxVotedCandidates();
     error NoCandidates();
+    error TooManyCandidates();
     error LengthMismatch();
     error AlreadyVoted();
     error NoVotingPower();
     error InvalidCandidate();
+    error DuplicateCandidate();
     error CanOnlyClaimBribesForPastPeriods();
     error InvalidBribeToken();
     error NotAuthorizedToClaimBribesFor(uint256 tokenId);
@@ -77,6 +81,10 @@ interface IElection is IVeNftUsageOracle {
     /// @param keeper The address to deauthorize.
     function deauthorizeVoteRefresher(address keeper) external;
 
+    /// @notice Set the maximum number of candidates a veNFT may vote for at once.
+    /// @param newMaxVotedCandidates The new maximum number of candidates that can be voted for by a given veNFT.
+    function setMaxVotedCandidates(uint256 newMaxVotedCandidates) external;
+
     /// @notice Vote using the weight of `tokenId` for a set of candidates, with an assigned portion of weight for each.
     /// @param tokenId The token to assign the weight of.
     /// @param candidates The candidates to vote for.
@@ -86,6 +94,7 @@ interface IElection is IVeNftUsageOracle {
     /// @notice Re-vote in the current period using the saved vote and weight state for the given veNFT ids.
     /// @dev Skips veNFTs (does not revert) that have already voted in the current period.
     /// @dev Skips veNFTs (does not revert) that have no stored voting data.
+    /// @dev Skips veNFTs (does not revert) that have voted for more than the maximum allowed number of candidates.
     /// @dev Skips veNFTs (does not revert) that have no voting power due to expiry, merger, etc.
     /// @dev Skips veNFTs (does not revert) if none of veNFTs voted candidates are valid.
     /// @dev If some candidates are invalid, votes only for valid candidates.

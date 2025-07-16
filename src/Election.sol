@@ -42,6 +42,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     mapping(uint256 tokenId => bytes32[] candidates) public votedCandidates;
     mapping(uint256 tokenId => uint256[] weights) public votedWeights;
     mapping(address keeper => bool canRefreshVotes) public isVoteRefresher;
+    uint256 public maxVotedCandidates = 50; // Just a reasonable default value.
 
     // --- Constructor ---
 
@@ -118,9 +119,17 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IElection
+    function setMaxVotedCandidates(uint256 newMaxVotedCandidates) external onlyOwner {
+        if (newMaxVotedCandidates < 1) revert ZeroMaxVotedCandidates();
+        maxVotedCandidates = newMaxVotedCandidates;
+        emit MaxVotedCandidatesSet(newMaxVotedCandidates);
+    }
+
+    /// @inheritdoc IElection
     function vote(uint256 tokenId, bytes32[] calldata candidates, uint256[] calldata weights) external nonReentrant {
         if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedForVoting();
         if (candidates.length == 0) revert NoCandidates();
+        if (candidates.length > maxVotedCandidates) revert TooManyCandidates();
         if (candidates.length != weights.length) revert LengthMismatch();
         uint256 periodStart = _votingPeriodStart(block.timestamp);
         if (lastVoteTime[tokenId] >= periodStart) revert AlreadyVoted();
@@ -142,6 +151,12 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < len; i++) {
             bytes32 candidate = candidates[i];
             if (!isCandidate[candidate]) revert InvalidCandidate();
+
+            // Enforce uniqueness.
+            for (uint256 j = i + 1; j < len; j++) {
+                if (candidate == candidates[j]) revert DuplicateCandidate();
+            }
+
             uint256 votesToAdd = power * weights[i] / totalWeight;
             if (votesToAdd > 0) {
                 _doVote(tokenId, votesToAdd, candidate, periodStart);
@@ -163,6 +178,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
             uint256 numCandidatesVotedFor = votedCandidates[tokenId].length;
             if (numCandidatesVotedFor == 0) continue;
+            if (numCandidatesVotedFor > maxVotedCandidates) continue;
 
             uint256 power = ve.balanceOfAt(tokenId, block.timestamp);
             if (power == 0) continue;

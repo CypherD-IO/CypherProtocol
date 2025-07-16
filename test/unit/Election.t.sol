@@ -50,6 +50,7 @@ contract ElectionTest is Test {
         assertEq(address(election.ve()), address(ve));
         assertTrue(election.isCandidate(STARTING_CANDIDATE));
         assertTrue(election.isBribeToken(STARTING_BRIBE_TOKEN));
+        assertEq(election.maxVotedCandidates(), 50);
     }
 
     function testEnableDisableCandiate() public {
@@ -145,6 +146,49 @@ contract ElectionTest is Test {
         election.deauthorizeVoteRefresher(keeper);
     }
 
+    function testAuthorizeDeauthorizeVoteRefresherAuth() public {
+        address keeper = address(0x123456789);
+        assertFalse(election.isVoteRefresher(keeper));
+
+        address notOwner = address(~uint160(address(this)));
+
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+        election.authorizeVoteRefresher(keeper);
+
+        // Successfully authorize.
+        election.authorizeVoteRefresher(keeper);
+
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+        election.deauthorizeVoteRefresher(keeper);
+    }
+
+    function testSetMaxVotedCandidates() public {
+        election.setMaxVotedCandidates(333);
+        assertEq(election.maxVotedCandidates(), 333);
+
+        // Value changes.
+        election.setMaxVotedCandidates(4);
+        assertEq(election.maxVotedCandidates(), 4);
+
+        // Can set the same value a second time; no-op.
+        election.setMaxVotedCandidates(4);
+        assertEq(election.maxVotedCandidates(), 4);
+    }
+
+    function testSetMaxVotedCandidatesAuth() public {
+        address notOwner = address(~uint160(address(this)));
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+        vm.prank(notOwner);
+        election.setMaxVotedCandidates(10);
+    }
+
+    function testSetMaxVotedCandidatesZero() public {
+        vm.expectRevert(IElection.ZeroMaxVotedCandidates.selector);
+        election.setMaxVotedCandidates(0);
+    }
+
     function testVoteSingleVoterPeriodStart() public {
         cypher.approve(address(ve), 4e18);
         uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
@@ -186,7 +230,7 @@ contract ElectionTest is Test {
         }
     }
 
-    // Verifies that it's voting power at the start of a period that counts.
+    // Verifies that it's voting power at the time of voting that counts.
     function testVoteSingleVoterDuringPeriod() public {
         cypher.approve(address(ve), 4e18);
         uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
@@ -288,6 +332,28 @@ contract ElectionTest is Test {
         uint256[] memory weights = new uint256[](0);
 
         vm.expectRevert(IElection.NoCandidates.selector);
+        election.vote(id, candidates, weights);
+    }
+
+    function testVoteTooManyCandidates() public {
+        cypher.approve(address(ve), 1e18);
+        uint256 id = ve.createLock(1e18, MAX_LOCK_DURATION);
+        _warpToNextVotePeriodStart();
+
+        election.setMaxVotedCandidates(1);
+
+        bytes32[] memory candidates = new bytes32[](2);
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+
+        election.enableCandidate(CANDIDATE1);
+        election.enableCandidate(CANDIDATE2);
+
+        uint256[] memory weights = new uint256[](2);
+        weights[0] = 50;
+        weights[1] = 50;
+
+        vm.expectRevert(IElection.TooManyCandidates.selector);
         election.vote(id, candidates, weights);
     }
 
@@ -436,6 +502,28 @@ contract ElectionTest is Test {
         election.vote(id, candidates, weights);
     }
 
+    function testVoteDuplicateCandidate() public {
+        _warpToNextVotePeriodStart();
+
+        cypher.approve(address(ve), 333e18);
+        uint256 id = ve.createLock(333e18, MAX_LOCK_DURATION);
+
+        bytes32[] memory candidates = new bytes32[](3);
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+        candidates[2] = CANDIDATE1;
+        uint256[] memory weights = new uint256[](3);
+        weights[0] = 1e18;
+        weights[1] = 1e18;
+        weights[2] = 1e18;
+
+        election.enableCandidate(CANDIDATE1);
+        election.enableCandidate(CANDIDATE2);
+
+        vm.expectRevert(IElection.DuplicateCandidate.selector);
+        election.vote(id, candidates, weights);
+    }
+
     function testUsageOracleFunctionality() public {
         uint256 firstPeriodStart = _warpToNextVotePeriodStart();
 
@@ -561,7 +649,7 @@ contract ElectionTest is Test {
         ids[1] = id2;
     }
 
-    function testRefreshVotesForFunctionality() external {
+    function testRefreshVotesForFunctionality() public {
         (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
         uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
         vm.warp(secondPeriodStart);
@@ -640,7 +728,7 @@ contract ElectionTest is Test {
         assertEq(election.votesForCandidateInPeriod(CANDIDATE3, thirdPeriodStart), power * 80 / 100);
     }
 
-    function testRefreshVotesForAuthorization() external {
+    function testRefreshVotesForAuthorization() public {
         (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
         uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
         vm.warp(secondPeriodStart);
@@ -656,7 +744,7 @@ contract ElectionTest is Test {
         election.refreshVotesFor(ids);
     }
 
-    function testRefreshVotesForSomeAlreadyVoted() external {
+    function testRefreshVotesForSomeAlreadyVoted() public {
         (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
         uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
         vm.warp(secondPeriodStart);
@@ -704,7 +792,7 @@ contract ElectionTest is Test {
         assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), power * 80 / 100);
     }
 
-    function testRefreshVotesForSomeHaveNoVoteData() external {
+    function testRefreshVotesForSomeHaveNoVoteData() public {
         (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
         uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
         vm.warp(secondPeriodStart);
@@ -745,7 +833,7 @@ contract ElectionTest is Test {
         assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), 0);
     }
 
-    function testRefreshVotesForNoPower() external {
+    function testRefreshVotesForNoPower() public {
         (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
         uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
         vm.warp(secondPeriodStart);
@@ -823,7 +911,7 @@ contract ElectionTest is Test {
         assertEq(election.votesForCandidateInPeriod(CANDIDATE3, end), 0);
     }
 
-    function testRefreshVotesForSomeCandidatesInvalid() external {
+    function testRefreshVotesForSomeCandidatesInvalid() public {
         (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
         uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
         vm.warp(secondPeriodStart);
@@ -853,7 +941,7 @@ contract ElectionTest is Test {
         assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), power);
     }
 
-    function testRefreshVotesForZeroTotalWeight() external {
+    function testRefreshVotesForZeroTotalWeight() public {
         (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
         uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
         vm.warp(secondPeriodStart);
@@ -879,7 +967,50 @@ contract ElectionTest is Test {
         assertEq(election.votesForCandidateInPeriod(CANDIDATE3, secondPeriodStart), 0);
     }
 
-    function testClearVoteData() external {
+    function testRefreshVotesForSomeVotedForTooManyCandidates() public {
+        (uint256 firstPeriodStart, uint256[] memory ids) = _refreshVotesForSetup();
+        uint256 secondPeriodStart = firstPeriodStart + VOTE_PERIOD;
+        vm.warp(secondPeriodStart);
+
+        election.clearVoteData(ids[1]);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 100;
+        election.vote(ids[1], candidates, weights);
+
+        uint256 thirdPeriodStart = secondPeriodStart + VOTE_PERIOD;
+        vm.warp(thirdPeriodStart);
+
+        uint256 power = ve.balanceOfAt(ids[1], thirdPeriodStart);
+
+        // Because ids[0] last voted when the limit was higher, they are now technicaly voting for more than the allowed number of candidates.
+        election.setMaxVotedCandidates(1);
+
+        vm.expectEmit(true, true, true, true);
+        emit IElection.Vote(ids[1], address(this), CANDIDATE1, thirdPeriodStart, power);
+        election.refreshVotesFor(ids);
+
+        for (uint256 i = 0; i < ids.length; i++) {
+            uint256 id = ids[i];
+            assertEq(election.lastVoteTime(id), i == 0 ? firstPeriodStart : thirdPeriodStart);
+            if (i == 0) {
+                assertFalse(election.isInUse(id));
+            } else {
+                assertTrue(election.isInUse(id));
+            }
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, thirdPeriodStart), i == 0 ? 0 : power);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE2, thirdPeriodStart), 0);
+            assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE3, thirdPeriodStart), 0);
+        }
+
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE1, thirdPeriodStart), power);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE2, thirdPeriodStart), 0);
+        assertEq(election.votesForCandidateInPeriod(CANDIDATE3, thirdPeriodStart), 0);
+    }
+
+    function testClearVoteData() public {
         uint256 firstPeriodStart = _warpToNextVotePeriodStart();
 
         cypher.approve(address(ve), type(uint256).max);
@@ -919,7 +1050,7 @@ contract ElectionTest is Test {
         election.votedWeights(id, 0);
     }
 
-    function testClearVoteDataAuthorization() external {
+    function testClearVoteDataAuthorization() public {
         cypher.approve(address(ve), type(uint256).max);
         uint256 id = ve.createLock(1e18, MAX_LOCK_DURATION);
 
