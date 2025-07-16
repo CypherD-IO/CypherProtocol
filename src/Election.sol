@@ -184,9 +184,11 @@ contract Election is IElection, Ownable, ReentrancyGuard {
             if (power == 0) continue;
 
             uint256 totalWeight;
+            bytes32[] memory candidates = new bytes32[](numCandidatesVotedFor);
             uint256[] memory weights = new uint256[](numCandidatesVotedFor);
             for (uint256 j; j < numCandidatesVotedFor; j++) {
-                if (!isCandidate[votedCandidates[tokenId][j]]) continue;
+                candidates[j] = votedCandidates[tokenId][j];
+                if (!isCandidate[candidates[j]]) continue;
                 weights[j] = votedWeights[tokenId][j];
                 totalWeight += weights[j];
             }
@@ -197,7 +199,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
             for (uint256 j; j < numCandidatesVotedFor; j++) {
                 uint256 votesToAdd = power * weights[j] / totalWeight;
                 if (votesToAdd > 0) {
-                    _doVote(tokenId, votesToAdd, votedCandidates[tokenId][j], periodStart);
+                    _doVote(tokenId, votesToAdd, candidates[j], periodStart);
                 }
             }
 
