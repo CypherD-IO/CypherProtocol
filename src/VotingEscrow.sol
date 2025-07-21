@@ -233,7 +233,11 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ERC721Enumerable, Reent
     }
 
     /// @inheritdoc IVotingEscrow
-    function tokensOwnedByFromIndexWithMax(address owner, uint256 startIndex, uint256 maxTokens) external view returns (uint256[] memory tokenIds) {
+    function tokensOwnedByFromIndexWithMax(address owner, uint256 startIndex, uint256 maxTokens)
+        external
+        view
+        returns (uint256[] memory tokenIds)
+    {
         uint256 numTokensOwned = balanceOf(owner);
         if (startIndex >= numTokensOwned) revert InvalidStartIndex();
         unchecked {

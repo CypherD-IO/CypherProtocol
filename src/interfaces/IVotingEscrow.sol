@@ -200,7 +200,10 @@ interface IVotingEscrow is IERC721 {
     /// @param startIndex Index of the first token id owned by the user to fetch.
     /// @param maxTokens The maximum number of tokens to fetch (may be larger than the fetchable tokens).
     /// @return tokenIds An array of up to maxTokens owned tokens from the given start index.
-    function tokensOwnedByFromIndexWithMax(address owner, uint256 startIndex, uint256 maxTokens) external view returns (uint256[] memory tokenIds);
+    function tokensOwnedByFromIndexWithMax(address owner, uint256 startIndex, uint256 maxTokens)
+        external
+        view
+        returns (uint256[] memory tokenIds);
 
     /// @notice Calculate total voting power (including indefinitely locked positions).
     /// @param timestamp Time at which to caluclate voting power
