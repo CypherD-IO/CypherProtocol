@@ -233,6 +233,19 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ERC721Enumerable, Reent
     }
 
     /// @inheritdoc IVotingEscrow
+    function tokensOwnedByFromIndexWithMax(address owner, uint256 startIndex, uint256 maxTokens) external view returns (uint256[] memory tokenIds) {
+        uint256 numTokensOwned = balanceOf(owner);
+        if (startIndex >= numTokensOwned) revert InvalidStartIndex();
+        unchecked {
+            uint256 upperBound = maxTokens >= numTokensOwned - startIndex ? numTokensOwned : startIndex + maxTokens;
+            tokenIds = new uint256[](upperBound - startIndex);
+            for (uint256 i = startIndex; i < upperBound; i++) {
+                tokenIds[i - startIndex] = tokenOfOwnerByIndex(owner, i);
+            }
+        }
+    }
+
+    /// @inheritdoc IVotingEscrow
     function totalSupplyAt(uint256 timestamp) external view returns (uint256) {
         uint256 startEpoch = epochAtOrPriorTo(timestamp, epoch, pointHistory);
         if (startEpoch == 0) return 0;

@@ -71,6 +71,7 @@ interface IVotingEscrow is IERC721 {
     error NewUnlockTimeNotAfterOld();
     error IdenticalTokenIds();
     error TokenInUse(uint256 tokenId);
+    error InvalidStartIndex();
 
     // --- Admin ---
 
@@ -193,6 +194,13 @@ interface IVotingEscrow is IERC721 {
     /// @param owner The address to fetch the owned tokens of.
     /// @return tokenIds The array of owned tokens (empty if none are owned by the provided address).
     function tokensOwnedBy(address owner) external view returns (uint256[] memory tokenIds);
+
+    /// @notice Get a consecutive subset of the tokens owned by a given address as an array.
+    /// @param owner The address to fetch the owned tokens of.
+    /// @param startIndex Index of the first token id owned by the user to fetch.
+    /// @param maxTokens The maximum number of tokens to fetch (may be larger than the fetchable tokens).
+    /// @return tokenIds An array of up to maxTokens owned tokens from the given start index.
+    function tokensOwnedByFromIndexWithMax(address owner, uint256 startIndex, uint256 maxTokens) external view returns (uint256[] memory tokenIds);
 
     /// @notice Calculate total voting power (including indefinitely locked positions).
     /// @param timestamp Time at which to caluclate voting power
