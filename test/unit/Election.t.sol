@@ -32,17 +32,17 @@ contract ElectionTest is Test {
     CypherToken cypher;
 
     function setUp() public {
+        vm.warp(0);
         cypher = new CypherToken(address(this));
         ve = new VotingEscrow(address(this), address(cypher));
         cypher.approve(address(ve), type(uint256).max);
-        vm.warp(T0);
         bytes32[] memory startingCandidate = new bytes32[](1);
         startingCandidate[0] = STARTING_CANDIDATE;
-
         address[] memory startingBribeToken = new address[](1);
         startingBribeToken[0] = STARTING_BRIBE_TOKEN;
-        election = new Election(address(this), address(ve), startingCandidate, startingBribeToken);
+        election = new Election(address(this), address(ve), T0, startingCandidate, startingBribeToken);
         ve.setVeNftUsageOracle(address(election));
+        vm.warp(T0);
     }
 
     function testConstruction() public view {
@@ -51,6 +51,20 @@ contract ElectionTest is Test {
         assertTrue(election.isCandidate(STARTING_CANDIDATE));
         assertTrue(election.isBribeToken(STARTING_BRIBE_TOKEN));
         assertEq(election.maxVotedCandidates(), 50);
+        assertEq(election.INITIAL_PERIOD_START(), T0);
+    }
+
+    function testConstructionFailsIfStartTimeNotInFuture() public {
+        bytes32[] memory startingCandidate = new bytes32[](1);
+        startingCandidate[0] = STARTING_CANDIDATE;
+        address[] memory startingBribeToken = new address[](1);
+        startingBribeToken[0] = STARTING_BRIBE_TOKEN;
+
+        vm.expectRevert("invalid start time");
+        new Election(address(this), address(ve), T0, startingCandidate, startingBribeToken);
+
+        vm.expectRevert("invalid start time");
+        new Election(address(this), address(ve), T0 - 5, startingCandidate, startingBribeToken);
     }
 
     function testEnableDisableCandiate() public {
@@ -305,6 +319,21 @@ contract ElectionTest is Test {
         assertEq(election.lastVoteTime(id), block.timestamp);
         assertEq(election.votesForCandidateInPeriod(CANDIDATE1, periodStart), power);
         assertEq(election.votesByTokenForCandidateInPeriod(id, CANDIDATE1, periodStart), power);
+    }
+
+    function testVoteBeforeInitialPeriodStart() public {
+        vm.warp(T0 - 1);
+        cypher.approve(address(ve), 4e18);
+        uint256 id = ve.createLock(4e18, MAX_LOCK_DURATION);
+
+        bytes32[] memory candidates = new bytes32[](1);
+        candidates[0] = CANDIDATE1;
+        election.enableCandidate(CANDIDATE1);
+        uint256[] memory weights = new uint256[](1);
+        weights[0] = 1e18;
+
+        vm.expectRevert(IElection.TimestampPrecedesFirstPeriod.selector);
+        election.vote(id, candidates, weights);
     }
 
     function testVoteUnauthorized() public {
@@ -1116,6 +1145,19 @@ contract ElectionTest is Test {
         assertEq(bribeAsset.balanceOf(address(this)), balBefore - 3e18);
     }
 
+    function testAddBribeBeforeInitialPeriod() public {
+        TestToken bribeAsset = new TestToken();
+        bribeAsset.mint(address(this), 100e18);
+
+        election.enableBribeToken(address(bribeAsset));
+        election.enableCandidate(CANDIDATE1);
+
+        vm.warp(T0 - 1);
+
+        vm.expectRevert(IElection.TimestampPrecedesFirstPeriod.selector);
+        election.addBribe(address(bribeAsset), 5e18, CANDIDATE1);
+    }
+
     function testAddBribeInvalidBribeToken() public {
         TestToken bribeAsset = new TestToken();
         bribeAsset.mint(address(this), 100e18);
@@ -1774,7 +1816,7 @@ contract ElectionTest is Test {
 
     function testHasClaimedBribeTimestampTooEarly() public {
         uint256 timestamp = _periodStart(T0) - 1;
-        vm.expectRevert(abi.encodeWithSelector(IElection.TimestampPrecedesFirstPeriod.selector, timestamp));
+        vm.expectRevert(IElection.TimestampPrecedesFirstPeriod.selector);
         election.hasClaimedBribe(1, address(0x1234), CANDIDATE1, timestamp);
     }
 
@@ -1934,17 +1976,17 @@ contract ElectionTest is Test {
     }
 
     function testClaimableAmountTimestampTooEarly() public {
-        uint256 timestamp = _periodStart(T0) - 1;
-        vm.expectRevert(abi.encodeWithSelector(IElection.TimestampPrecedesFirstPeriod.selector, timestamp));
+        uint256 timestamp = T0 - 1;
+        vm.expectRevert(IElection.TimestampPrecedesFirstPeriod.selector);
         election.claimableAmount(1, address(0x1234), CANDIDATE1, timestamp);
     }
 
     function _warpToNextVotePeriodStart() internal returns (uint256 nextPeriodStart) {
-        nextPeriodStart = block.timestamp + VOTE_PERIOD - block.timestamp % VOTE_PERIOD;
+        nextPeriodStart = _periodStart(block.timestamp) + VOTE_PERIOD;
         vm.warp(nextPeriodStart);
     }
 
     function _periodStart(uint256 t) internal pure returns (uint256) {
-        return t / VOTE_PERIOD * VOTE_PERIOD;
+        return T0 + (t - T0) / VOTE_PERIOD * VOTE_PERIOD;
     }
 }

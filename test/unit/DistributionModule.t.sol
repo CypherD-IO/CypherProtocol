@@ -42,13 +42,15 @@ contract DistributionModuleUnitTest is Test {
     uint256 public startTime;
 
     function setUp() public {
+        vm.warp(0);
+
         token = new MockToken();
         safe = new MockSafe();
         owner = address(this);
         emissionAddress = address(0xE1);
 
-        // Set startTime to a future week boundary
-        startTime = (block.timestamp / 1 weeks + 1) * 1 weeks;
+        // Set startTime to an arbitrary time.
+        startTime = 777_777;
 
         module = new DistributionModule(owner, address(safe), address(token), emissionAddress, startTime);
         vm.warp(startTime);
@@ -66,6 +68,7 @@ contract DistributionModuleUnitTest is Test {
         assertEq(address(module.safe()), address(safe), "safe address incorrect");
         assertEq(module.emissionAddress(), emissionAddress, "emission address incorrect");
         assertEq(module.lastEmissionTime(), startTime, "last emission time incorrect");
+        assertEq(module.START_TIME(), startTime, "START_TIME incorrect");
     }
 
     function testConstructionReverts() public {
@@ -186,7 +189,7 @@ contract DistributionModuleUnitTest is Test {
         assertEq(token.balanceOf(emissionAddress) - balanceBefore, expectedAmount);
 
         // Verify lastEmissionTime was updated
-        assertEq(module.lastEmissionTime(), block.timestamp - (block.timestamp % 1 weeks));
+        assertEq(module.lastEmissionTime(), block.timestamp - ((block.timestamp - startTime) % 1 weeks));
 
         // Verify no pending emissions
         assertEq(module.getPendingEmission(), 0);
@@ -342,7 +345,7 @@ contract DistributionModuleUnitTest is Test {
             );
 
             // Verify lastEmissionTime was updated correctly
-            assertEq(module.lastEmissionTime(), scheduleEndTime - (scheduleEndTime % 1 weeks));
+            assertEq(module.lastEmissionTime(), scheduleEndTime - ((scheduleEndTime - startTime) % 1 weeks));
         }
 
         _checkTotalTokensEmitted(totalEmitted);
@@ -394,8 +397,7 @@ contract DistributionModuleUnitTest is Test {
         vm.expectRevert("Invalid start time");
         new DistributionModule(owner, address(safe), address(token), emissionAddress, currentTime - 1);
 
-        // Try to create with future timestamp but not week boundary (should fail)
-        vm.expectRevert("Start time must be at week boundary");
+        // Try to create with future timestamp but not week boundary (should succeed)
         new DistributionModule(owner, address(safe), address(token), emissionAddress, nextWeekBoundary + 1);
 
         // Create with future week boundary timestamp (should succeed)
@@ -404,6 +406,7 @@ contract DistributionModuleUnitTest is Test {
 
         // Verify the module was created with correct lastEmissionTime
         assertEq(validModule.lastEmissionTime(), nextWeekBoundary, "Last emission time incorrect");
+        assertEq(validModule.START_TIME(), nextWeekBoundary, "START_TIME incorrect");
     }
 
     function testScheduleBoundaryEdgeCases() public {

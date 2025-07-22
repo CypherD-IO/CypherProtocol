@@ -49,7 +49,7 @@ interface IElection is IVeNftUsageOracle {
     error InvalidBribeToken();
     error NotAuthorizedToClaimBribesFor(uint256 tokenId);
     error ZeroAmount();
-    error TimestampPrecedesFirstPeriod(uint256 timestamp);
+    error TimestampPrecedesFirstPeriod();
     error AlreadyVoteRefresher();
     error NotVoteRefresher();
     error CallerNotVoteRefresher();
@@ -126,6 +126,10 @@ interface IElection is IVeNftUsageOracle {
     function addBribe(address bribeToken, uint256 amount, bytes32 candidate) external;
 
     // --- Views ---
+
+    /// @notice The earliest time that voting and bribing are possible.
+    /// @return Unix timestamp at which voting and bribing are enabled.
+    function INITIAL_PERIOD_START() external view returns (uint256);
 
     /// @notice Return the address of the voting escrow contract in use.
     /// @return ve The voting escrow.

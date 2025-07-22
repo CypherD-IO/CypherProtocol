@@ -11,13 +11,12 @@ import {RewardDistributor} from "src/RewardDistributor.sol";
 import {DistributionModule} from "src/DistributionModule.sol";
 
 /// @notice this script requires environment variable START_TIME to be set
-/// to a timestamp in the future that is a week boundary where the remainder
-/// of the division by 7 * 86400 is 0. This is when incentives will start.
-/// If the start time is set to the past, or not a week boundary, the script
-/// will revert because the DistributionModule will fail to deploy.
+/// to a timestamp in the future. This is when incentives will start, and
+/// is also when the first voting period will begin.
+/// If the start time is set to the past, the script will revert because the
+/// DistributionModule and/or Election will fail to deploy.
 
-/// start time must be set to a week boundary
-///  example usage for local testing:
+/// example usage for local testing:
 ///     START_TIME=1743638400 forge script SystemDeploy -vvv --rpc-url base
 
 ///  mainnet usage:
@@ -76,6 +75,7 @@ contract SystemDeploy is MultisigProposal {
             Election election = new Election(
                 addresses.getAddress("GOVERNOR_MULTISIG"),
                 addresses.getAddress("VOTING_ESCROW"),
+                vm.envUint("START_TIME"),
                 startingCandidates,
                 startingBribeTokens
             );
@@ -152,6 +152,7 @@ contract SystemDeploy is MultisigProposal {
         assertEq(address(module.token()), cypherToken, "Distribution module not pointing to Cypher token");
         assertEq(module.owner(), governor, "Distribution module not owned by governor multisig");
         assertEq(module.emissionAddress(), rewardDistributor, "Reward Distributor not properly set");
+        assertEq(module.START_TIME(), vm.envUint("START_TIME"));
 
         /// this check cannnot be run after the second period
         assertEq(module.lastEmissionTime(), vm.envUint("START_TIME"), "Distribution module start time incorrect");
@@ -163,6 +164,7 @@ contract SystemDeploy is MultisigProposal {
         Election election = Election(addresses.getAddress("ELECTION"));
         assertEq(election.owner(), governor, "Election not owned by governor multisig");
         assertEq(address(election.ve()), addresses.getAddress("VOTING_ESCROW"), "Voting Escrow not set");
+        assertEq(election.INITIAL_PERIOD_START(), vm.envUint("START_TIME"));
 
         VotingEscrow voteEscrow = VotingEscrow(addresses.getAddress("VOTING_ESCROW"));
         assertEq(address(voteEscrow.cypher()), addresses.getAddress("CYPHER_TOKEN"), "Cypher Token not set");

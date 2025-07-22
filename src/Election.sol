@@ -18,7 +18,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     // --- Immutables ---
 
-    uint256 private immutable INITIAL_PERIOD_START;
+    uint256 public immutable INITIAL_PERIOD_START;
     IVotingEscrow public immutable ve;
 
     // --- Storage ---
@@ -49,11 +49,14 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     constructor(
         address initialOwner,
         address votingEscrow,
+        uint256 startTime,
         bytes32[] memory startingCandidates,
         address[] memory startingBribeTokens
     ) Ownable(initialOwner) {
         ve = IVotingEscrow(votingEscrow);
-        INITIAL_PERIOD_START = _votingPeriodStart(block.timestamp);
+
+        require(startTime > block.timestamp, "invalid start time");
+        INITIAL_PERIOD_START = startTime;
 
         /// enable starting candidates
         for (uint256 i = 0; i < startingCandidates.length; i++) {
@@ -131,6 +134,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         if (candidates.length == 0) revert NoCandidates();
         if (candidates.length > maxVotedCandidates) revert TooManyCandidates();
         if (candidates.length != weights.length) revert LengthMismatch();
+        if (block.timestamp < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod();
         uint256 periodStart = _votingPeriodStart(block.timestamp);
         if (lastVoteTime[tokenId] >= periodStart) revert AlreadyVoted();
 
@@ -272,6 +276,7 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         if (!isBribeToken[bribeToken]) revert InvalidBribeToken();
         if (!isCandidate[candidate]) revert InvalidCandidate();
         if (amount == 0) revert ZeroAmount();
+        if (block.timestamp < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod();
         uint256 periodStart = _votingPeriodStart(block.timestamp);
         amountOfBribeTokenForCandidateInPeriod[bribeToken][candidate][periodStart] += amount;
 
@@ -293,8 +298,8 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         view
         returns (bool)
     {
+        if (timestamp < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod();
         uint256 periodStart = _votingPeriodStart(timestamp);
-        if (periodStart < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod(timestamp);
         return _isBribeClaimed(tokenId, bribeToken, candidate, periodStart);
     }
 
@@ -304,8 +309,8 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         view
         returns (uint256)
     {
+        if (timestamp < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod();
         uint256 periodStart = _votingPeriodStart(timestamp);
-        if (periodStart < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod(timestamp);
 
         unchecked {
             // Bribes do not become claimable until a period has finished.
@@ -333,12 +338,11 @@ contract Election is IElection, Ownable, ReentrancyGuard {
 
     // --- Internals ---
 
-    /// @dev Voting periods are time intervals of the form [ N * VOTE_PERIOD, (N + 1) * VOTE_PERIOD )
+    /// @dev Voting periods are time intervals of the form [ INITIAL_PERIOD_START + N * VOTE_PERIOD, INITIAL_PERIOD_START + (N + 1) * VOTE_PERIOD )
     ///      (first bound is included, second is excluded).
-    function _votingPeriodStart(uint256 timestamp) private pure returns (uint256) {
-        unchecked {
-            return (timestamp / VOTE_PERIOD) * VOTE_PERIOD;
-        }
+    /// @dev Reverts when timestamp < INITIAL_PERIOD_START, this will prevent voting/bribing/etc if an explicit check is missed.
+    function _votingPeriodStart(uint256 timestamp) private view returns (uint256) {
+        return INITIAL_PERIOD_START + ((timestamp - INITIAL_PERIOD_START) / VOTE_PERIOD) * VOTE_PERIOD;
     }
 
     function _doVote(uint256 tokenId, uint256 votesToAdd, bytes32 candidate, uint256 periodStart) private {
