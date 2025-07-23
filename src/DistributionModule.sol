@@ -70,6 +70,7 @@ contract DistributionModule is Ownable {
         // Initialize emission schedule
 
         require(_startTime > block.timestamp, "Invalid start time");
+        require(_startTime % WEEK == 0, "Start time must be at week boundary");
 
         START_TIME = _startTime;
         lastEmissionTime = _startTime;
@@ -181,7 +182,8 @@ contract DistributionModule is Ownable {
         ///  updated to the current block timestamp
         require(amount > 0, "No pending emissions");
 
-        lastEmissionTime = block.timestamp - ((block.timestamp - START_TIME) % WEEK);
+        // Note: this line assumes START_TIME is a multiple of WEEK.
+        lastEmissionTime = block.timestamp - (block.timestamp % WEEK);
 
         // Execute the transfer through the Safe
         require(

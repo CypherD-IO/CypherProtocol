@@ -42,15 +42,13 @@ contract DistributionModuleUnitTest is Test {
     uint256 public startTime;
 
     function setUp() public {
-        vm.warp(0);
-
         token = new MockToken();
         safe = new MockSafe();
         owner = address(this);
         emissionAddress = address(0xE1);
 
-        // Set startTime to an arbitrary time.
-        startTime = 777_777;
+        // Set startTime to a future week boundary
+        startTime = (block.timestamp / 1 weeks + 1) * 1 weeks;
 
         module = new DistributionModule(owner, address(safe), address(token), emissionAddress, startTime);
         vm.warp(startTime);
@@ -189,7 +187,7 @@ contract DistributionModuleUnitTest is Test {
         assertEq(token.balanceOf(emissionAddress) - balanceBefore, expectedAmount);
 
         // Verify lastEmissionTime was updated
-        assertEq(module.lastEmissionTime(), block.timestamp - ((block.timestamp - startTime) % 1 weeks));
+        assertEq(module.lastEmissionTime(), block.timestamp - (block.timestamp % 1 weeks));
 
         // Verify no pending emissions
         assertEq(module.getPendingEmission(), 0);
@@ -345,7 +343,7 @@ contract DistributionModuleUnitTest is Test {
             );
 
             // Verify lastEmissionTime was updated correctly
-            assertEq(module.lastEmissionTime(), scheduleEndTime - ((scheduleEndTime - startTime) % 1 weeks));
+            assertEq(module.lastEmissionTime(), scheduleEndTime - (scheduleEndTime % 1 weeks));
         }
 
         _checkTotalTokensEmitted(totalEmitted);
@@ -397,7 +395,8 @@ contract DistributionModuleUnitTest is Test {
         vm.expectRevert("Invalid start time");
         new DistributionModule(owner, address(safe), address(token), emissionAddress, currentTime - 1);
 
-        // Try to create with future timestamp but not week boundary (should succeed)
+        // Try to create with future timestamp but not week boundary (should fail)
+        vm.expectRevert("Start time must be at week boundary");
         new DistributionModule(owner, address(safe), address(token), emissionAddress, nextWeekBoundary + 1);
 
         // Create with future week boundary timestamp (should succeed)

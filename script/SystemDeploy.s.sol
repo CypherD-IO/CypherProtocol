@@ -11,17 +11,19 @@ import {RewardDistributor} from "src/RewardDistributor.sol";
 import {DistributionModule} from "src/DistributionModule.sol";
 
 /// @notice this script requires environment variable START_TIME to be set
-/// to a timestamp in the future. This is when incentives will start, and
+/// to a timestamp in the future that is a multiple of the voting period
+/// (2 weeks = 14 * 86400 = 1209600). This is when incentives will start, and
 /// is also when the first voting period will begin.
-/// If the start time is set to the past, the script will revert because the
-/// DistributionModule and/or Election will fail to deploy.
+/// If the start time is set to the past, or not a multiple of 2 weeks, then
+/// the script will revert because the DistributionModule and/or Election will
+/// fail to deploy.
 
 /// example usage for local testing:
-///     START_TIME=1743638400 forge script SystemDeploy -vvv --rpc-url base
+///     START_TIME=1744243200 forge script SystemDeploy -vvv --rpc-url base
 
 ///  mainnet usage:
 ///  please note the deployer EOA in 8453.json must be the same as the account broadcasting this transaction
-///     START_TIME=1743638400 DO_UPDATE_JSON=true forge script SystemDeploy -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
+///     START_TIME=1744243200 DO_UPDATE_JSON=true forge script SystemDeploy -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
 
 contract SystemDeploy is MultisigProposal {
     /// @notice returns the name of the proposal

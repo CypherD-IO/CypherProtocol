@@ -25,7 +25,7 @@ contract ElectionTest is Test {
     address constant USER2 = address(0x987654321);
     uint256 private constant VOTE_PERIOD = 2 weeks;
     uint256 private constant MAX_LOCK_DURATION = 52 * 2 weeks;
-    uint256 private constant T0 = 98764321;
+    uint256 private constant T0 = 41 * VOTE_PERIOD;
 
     Election election;
     VotingEscrow ve;
@@ -64,7 +64,19 @@ contract ElectionTest is Test {
         new Election(address(this), address(ve), T0, startingCandidate, startingBribeToken);
 
         vm.expectRevert("invalid start time");
-        new Election(address(this), address(ve), T0 - 5, startingCandidate, startingBribeToken);
+        new Election(address(this), address(ve), T0 - VOTE_PERIOD, startingCandidate, startingBribeToken);
+    }
+
+    function testConstructionFailsIfStartTimeNotMultipleOfVotePeriod() public {
+        bytes32[] memory startingCandidate = new bytes32[](1);
+        startingCandidate[0] = STARTING_CANDIDATE;
+        address[] memory startingBribeToken = new address[](1);
+        startingBribeToken[0] = STARTING_BRIBE_TOKEN;
+
+        vm.warp(0);
+
+        vm.expectRevert("start time not a multiple of VOTE_PERIOD");
+        new Election(address(this), address(ve), T0 - 1, startingCandidate, startingBribeToken);
     }
 
     function testEnableDisableCandiate() public {

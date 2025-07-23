@@ -56,6 +56,18 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         ve = IVotingEscrow(votingEscrow);
 
         require(startTime > block.timestamp, "invalid start time");
+
+        // Important--this requirement synchronizes Election voting periods with
+        // VotingEscrow epochs, and means that locks always expire at the end of voting periods.
+        // This prevents re-voting with tokens that were voted with and then withdrawn in the
+        // same period. If this is ever changed then either:
+        // 1) The VotingEscrow must block withdrawals for tokens that voted within the current period.
+        //    This is undesirable because governance can change the VotingEscrow's veNFT usage oracle
+        //    to something that always returns false and block withdrawals indefinitely for all users.
+        // 2) The VotingEscrow must be changed to accommodate the same epoch schedule as the Election.
+        //    This is undesirable as the VotingEscrow is battle-tested code and changes should be minimized.
+        require(startTime % VOTE_PERIOD == 0, "start time not a multiple of VOTE_PERIOD");
+
         INITIAL_PERIOD_START = startTime;
 
         /// enable starting candidates
