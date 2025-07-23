@@ -480,8 +480,9 @@ contract VotingEscrow is IVotingEscrow, Ownable, ERC721, ERC721Enumerable, Reent
         view
         returns (uint256)
     {
-        if (lastEpoch == 0 || points[1].ts > timestamp) return 0;
-        if (points[lastEpoch].ts <= timestamp) return lastEpoch;
+        if (lastEpoch == 0) return 0;
+        if (points[lastEpoch].ts <= timestamp) return (lastEpoch);
+        if (points[1].ts > timestamp) return 0;
 
         // Established: points[1].ts <= timestamp && points[lastEpoch].ts > timestamp
 
