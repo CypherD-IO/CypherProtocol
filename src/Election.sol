@@ -87,6 +87,12 @@ contract Election is IElection, Ownable, ReentrancyGuard {
         emit CandidateEnabled(candidate);
     }
 
+    function _disableCandidate(bytes32 candidate) private {
+        if (!isCandidate[candidate]) revert CandidateNotEnabled();
+        isCandidate[candidate] = false;
+        emit CandidateDisabled(candidate);
+    }
+
     function _enableBribeToken(address token) private {
         if (isBribeToken[token]) revert BribeTokenAlreadyEnabled();
         isBribeToken[token] = true;
@@ -101,10 +107,22 @@ contract Election is IElection, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IElection
+    function batchEnableCandidates(bytes32[] calldata candidates) external onlyOwner {
+        for (uint256 i; i < candidates.length; i++) {
+            _enableCandidate(candidates[i]);
+        }
+    }
+
+    /// @inheritdoc IElection
     function disableCandidate(bytes32 candidate) external onlyOwner {
-        if (!isCandidate[candidate]) revert CandidateNotEnabled();
-        isCandidate[candidate] = false;
-        emit CandidateDisabled(candidate);
+        _disableCandidate(candidate);
+    }
+
+    /// @inheritdoc IElection
+    function batchDisableCandidates(bytes32[] calldata candidates) external onlyOwner {
+        for (uint256 i; i < candidates.length; i++) {
+            _disableCandidate(candidates[i]);
+        }
     }
 
     /// @inheritdoc IElection

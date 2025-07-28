@@ -61,9 +61,17 @@ interface IElection is IVeNftUsageOracle {
     /// @param candidate The candidate to enable.
     function enableCandidate(bytes32 candidate) external;
 
+    /// @notice Enable voting for multiple candidates.
+    /// @param candidates The array of candidates to enable.
+    function batchEnableCandidates(bytes32[] calldata candidates) external;
+
     /// @notice Disable voting for a candidate.
     /// @param candidate The candidate to disable.
     function disableCandidate(bytes32 candidate) external;
+
+    /// @notice Disable voting for multiple candidates.
+    /// @param candidates The array of candidates to disable.
+    function batchDisableCandidates(bytes32[] calldata candidates) external;
 
     /// @notice Enable making bribes with a particular token.
     /// @param bribeToken The token to enable making bribes with.

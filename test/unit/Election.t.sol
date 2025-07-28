@@ -79,7 +79,7 @@ contract ElectionTest is Test {
         new Election(address(this), address(ve), T0 - 1, startingCandidate, startingBribeToken);
     }
 
-    function testEnableDisableCandiate() public {
+    function testEnableDisableCandidate() public {
         assertFalse(election.isCandidate(CANDIDATE1));
 
         election.enableCandidate(CANDIDATE1);
@@ -98,10 +98,7 @@ contract ElectionTest is Test {
     }
 
     function testEnableDisableCandidateAuth() public {
-        address notOwner;
-        unchecked {
-            notOwner = address(uint160(address(this)) + 1);
-        }
+        address notOwner = address(~uint160(address(this)));
 
         vm.prank(notOwner);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
@@ -113,6 +110,51 @@ contract ElectionTest is Test {
         vm.prank(notOwner);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
         election.disableCandidate(CANDIDATE1);
+    }
+
+    function testBatchEnableDisableCandidates() public {
+        bytes32[] memory candidates = new bytes32[](3);
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+        candidates[2] = CANDIDATE3;
+
+        election.batchEnableCandidates(candidates);
+        for (uint256 i; i < candidates.length; i++) {
+            assertTrue(election.isCandidate(candidates[i]));
+        }
+
+        // Enabling a second time is an error
+        vm.expectRevert(IElection.CandidateAlreadyEnabled.selector);
+        election.batchEnableCandidates(candidates);
+
+        election.batchDisableCandidates(candidates);
+        for (uint256 i; i < candidates.length; i++) {
+            assertFalse(election.isCandidate(candidates[i]));
+        }
+
+        // Disabling a second time is an error
+        vm.expectRevert(IElection.CandidateNotEnabled.selector);
+        election.batchDisableCandidates(candidates);
+    }
+
+    function testBatchEnableDisableCandidatesAuth() public {
+        address notOwner = address(~uint160(address(this)));
+
+        bytes32[] memory candidates = new bytes32[](3);
+        candidates[0] = CANDIDATE1;
+        candidates[1] = CANDIDATE2;
+        candidates[2] = CANDIDATE3;
+
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+        election.batchEnableCandidates(candidates);
+
+        // successfully enable
+        election.batchEnableCandidates(candidates);
+
+        vm.prank(notOwner);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+        election.batchDisableCandidates(candidates);
     }
 
     function testEnableDisableBribeToken() public {
