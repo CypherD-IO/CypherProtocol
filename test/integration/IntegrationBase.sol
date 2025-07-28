@@ -45,9 +45,9 @@ contract IntegrationBase is Test {
         // Calculate a future start time that is a week boundary
         // Current timestamp + time until next week boundary
         uint256 currentTime = block.timestamp;
-        uint256 weekInSeconds = 7 * 86400;
-        uint256 timeUntilNextWeekBoundary = weekInSeconds - (currentTime % weekInSeconds);
-        startTime = currentTime + timeUntilNextWeekBoundary;
+        uint256 twoWeeksInSeconds = 14 * 86400;
+        uint256 timeUntilNextTwoWeekBoundary = twoWeeksInSeconds - (currentTime % twoWeeksInSeconds);
+        startTime = currentTime + timeUntilNextTwoWeekBoundary;
 
         // Set START_TIME environment variable for deploy function in SystemDeploy
         vm.setEnv("START_TIME", vm.toString(startTime));

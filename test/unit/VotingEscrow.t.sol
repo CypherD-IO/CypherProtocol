@@ -455,8 +455,6 @@ contract VotingEscrowUnitTest is Test {
 
         assertEq(ve.ownerOf(id), address(this));
 
-        uint256 cypherBalBefore = cypher.balanceOf(address(this));
-
         vm.startPrank(other);
         ve.withdraw(id, true);
         vm.stopPrank();
@@ -1092,6 +1090,62 @@ contract VotingEscrowUnitTest is Test {
         assertEq(ve.totalSupplyAt(ts), 0);
         assertEq(ve.balanceOfAt(id1, ts), 0);
         assertEq(ve.balanceOfAt(id2, ts), 0);
+    }
+
+    function testTokensOwnedBy() public {
+        uint256[] memory ids = new uint256[](3);
+        ids[0] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[1] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[2] = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        uint256[] memory tokensOwned = ve.tokensOwnedBy(address(this));
+        assertEq(tokensOwned.length, 3);
+        for (uint256 i; i < 3; i++) {
+            assertEq(tokensOwned[i], ids[i]);
+        }
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 0, 2);
+        assertEq(tokensOwned.length, 2);
+        for (uint256 i; i < 2; i++) {
+            assertEq(tokensOwned[i], ids[i]);
+        }
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 1, 2);
+        assertEq(tokensOwned.length, 2);
+        for (uint256 i; i < 2; i++) {
+            assertEq(tokensOwned[i], ids[i + 1]);
+        }
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 0, 3);
+        assertEq(tokensOwned.length, 3);
+        for (uint256 i; i < 3; i++) {
+            assertEq(tokensOwned[i], ids[i]);
+        }
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 0, 0);
+        assertEq(tokensOwned.length, 0);
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 2, 3);
+        assertEq(tokensOwned.length, 1);
+        for (uint256 i; i < 1; i++) {
+            assertEq(tokensOwned[i], ids[i + 2]);
+        }
+    }
+
+    function testTokensOwnedByFromIndexWithMaxInvalidStartIndex() public {
+        vm.expectRevert(IVotingEscrow.InvalidStartIndex.selector);
+        ve.tokensOwnedByFromIndexWithMax(address(this), 0, 1);
+
+        uint256[] memory ids = new uint256[](3);
+        ids[0] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[1] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[2] = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        vm.expectRevert(IVotingEscrow.InvalidStartIndex.selector);
+        ve.tokensOwnedByFromIndexWithMax(address(this), 3, 1);
+
+        vm.expectRevert(IVotingEscrow.InvalidStartIndex.selector);
+        ve.tokensOwnedByFromIndexWithMax(address(this), 3, 0);
     }
 
     function _get2TimesTimestamp() internal view returns (uint256) {

@@ -11,6 +11,9 @@ interface IElection is IVeNftUsageOracle {
     event CandidateDisabled(bytes32 indexed candidate);
     event BribeTokenEnabled(address indexed bribeToken);
     event BribeTokenDisabled(address indexed bribeToken);
+    event VoteRefresherAuthorized(address indexed keeper);
+    event VoteRefresherDeauthorized(address indexed keeper);
+    event MaxVotedCandidatesSet(uint256 newMaxVotedCandidates);
     event Vote(
         uint256 indexed tokenId,
         address indexed tokenOwner,
@@ -34,16 +37,23 @@ interface IElection is IVeNftUsageOracle {
     error BribeTokenAlreadyEnabled();
     error BribeTokenNotEnabled();
     error NotAuthorizedForVoting();
+    error ZeroMaxVotedCandidates();
     error NoCandidates();
+    error TooManyCandidates();
     error LengthMismatch();
     error AlreadyVoted();
     error NoVotingPower();
     error InvalidCandidate();
+    error DuplicateCandidate();
     error CanOnlyClaimBribesForPastPeriods();
     error InvalidBribeToken();
     error NotAuthorizedToClaimBribesFor(uint256 tokenId);
     error ZeroAmount();
-    error TimestampPrecedesFirstPeriod(uint256 timestamp);
+    error TimestampPrecedesFirstPeriod();
+    error AlreadyVoteRefresher();
+    error NotVoteRefresher();
+    error CallerNotVoteRefresher();
+    error NotAuthorizedToClearVoteDataFor(uint256 tokenId);
 
     // --- Mutations ---
 
@@ -51,9 +61,17 @@ interface IElection is IVeNftUsageOracle {
     /// @param candidate The candidate to enable.
     function enableCandidate(bytes32 candidate) external;
 
+    /// @notice Enable voting for multiple candidates.
+    /// @param candidates The array of candidates to enable.
+    function batchEnableCandidates(bytes32[] calldata candidates) external;
+
     /// @notice Disable voting for a candidate.
     /// @param candidate The candidate to disable.
     function disableCandidate(bytes32 candidate) external;
+
+    /// @notice Disable voting for multiple candidates.
+    /// @param candidates The array of candidates to disable.
+    function batchDisableCandidates(bytes32[] calldata candidates) external;
 
     /// @notice Enable making bribes with a particular token.
     /// @param bribeToken The token to enable making bribes with.
@@ -63,11 +81,37 @@ interface IElection is IVeNftUsageOracle {
     /// @param bribeToken The token to disable making bribes with.
     function disableBribeToken(address bribeToken) external;
 
+    /// @notice Authorize an address for refreshing user votes.
+    /// @param keeper The address to authorize.
+    function authorizeVoteRefresher(address keeper) external;
+
+    /// @notice Deauthorize an address for refreshing user votes.
+    /// @param keeper The address to deauthorize.
+    function deauthorizeVoteRefresher(address keeper) external;
+
+    /// @notice Set the maximum number of candidates a veNFT may vote for at once.
+    /// @param newMaxVotedCandidates The new maximum number of candidates that can be voted for by a given veNFT.
+    function setMaxVotedCandidates(uint256 newMaxVotedCandidates) external;
+
     /// @notice Vote using the weight of `tokenId` for a set of candidates, with an assigned portion of weight for each.
     /// @param tokenId The token to assign the weight of.
     /// @param candidates The candidates to vote for.
     /// @param weights Per-candidate weight fraction.
     function vote(uint256 tokenId, bytes32[] calldata candidates, uint256[] calldata weights) external;
+
+    /// @notice Re-vote in the current period using the saved vote and weight state for the given veNFT ids.
+    /// @dev Skips veNFTs (does not revert) that have already voted in the current period.
+    /// @dev Skips veNFTs (does not revert) that have no stored voting data.
+    /// @dev Skips veNFTs (does not revert) that have voted for more than the maximum allowed number of candidates.
+    /// @dev Skips veNFTs (does not revert) that have no voting power due to expiry, merger, etc.
+    /// @dev Skips veNFTs (does not revert) if none of veNFTs voted candidates are valid.
+    /// @dev If some candidates are invalid, votes only for valid candidates.
+    /// @param tokenIds An array of token ids for which to attempt to refresh votes for the current period.
+    function refreshVotesFor(uint256[] calldata tokenIds) external;
+
+    /// @notice Clears stored voting data--opts out of vote refreshing. Does not undo votes in current period.
+    /// @param tokenId The id of the veNFT for which to clear vote data.
+    function clearVoteData(uint256 tokenId) external;
 
     /// @notice Claim bribes.
     /// @param tokenId Id of the token to claim bribes for.
@@ -90,6 +134,10 @@ interface IElection is IVeNftUsageOracle {
     function addBribe(address bribeToken, uint256 amount, bytes32 candidate) external;
 
     // --- Views ---
+
+    /// @notice The earliest time that voting and bribing are possible.
+    /// @return Unix timestamp at which voting and bribing are enabled.
+    function INITIAL_PERIOD_START() external view returns (uint256);
 
     /// @notice Return the address of the voting escrow contract in use.
     /// @return ve The voting escrow.
@@ -125,6 +173,28 @@ interface IElection is IVeNftUsageOracle {
         external
         view
         returns (uint256 votes);
+
+    /// @notice Provides access to the array of candidates stored based on a veNFT's previous vote.
+    /// @param tokenId The id of the veNFT to query for.
+    /// @param index Index in the array of voted candidates to retrieve.
+    /// @return candidate The candidate stored at the given array index.
+    function votedCandidates(uint256 tokenId, uint256 index) external view returns (bytes32 candidate);
+
+    /// @notice Returns the number of candidates stored based on a veNFT's previous vote.
+    /// @param tokenId The id of the veNFT to query for.
+    /// @return numVotedCandidates The number of candidates voted for.
+    function numVotedCandidates(uint256 tokenId) external view returns (uint256 numVotedCandidates);
+
+    /// @notice Provides access to the array of weights stored based on a veNFT's previous vote.
+    /// @param tokenId The id of the veNFT to query for.
+    /// @param index Index in the array of voted weights to retrieve.
+    /// @return weight The weight assigned to candidate at the same index.
+    function votedWeights(uint256 tokenId, uint256 index) external view returns (uint256 weight);
+
+    /// @notice Informs the caller whether the provided address is an authorized vote refresher.
+    /// @param keeper The address to query the vote refresh authorization status of.
+    /// @return isVoteRefresher Whether the address is authorized to refresh votes.
+    function isVoteRefresher(address keeper) external view returns (bool isVoteRefresher);
 
     /// @notice Check whether a bribe has been claimed.
     /// @param tokenId Id of the veNFT to query for.

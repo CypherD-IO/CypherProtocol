@@ -31,6 +31,9 @@ contract DistributionModule is Ownable {
     /// @notice Gnosis Safe that holds the tokens
     address public immutable safe;
 
+    /// @notice Timestamp at which the distributions first begin.
+    uint256 public immutable START_TIME;
+
     /// @notice Last emission timestamp
     uint256 public lastEmissionTime;
 
@@ -69,6 +72,7 @@ contract DistributionModule is Ownable {
         require(_startTime > block.timestamp, "Invalid start time");
         require(_startTime % WEEK == 0, "Start time must be at week boundary");
 
+        START_TIME = _startTime;
         lastEmissionTime = _startTime;
 
         // First 24 months - 13 week periods
@@ -178,6 +182,7 @@ contract DistributionModule is Ownable {
         ///  updated to the current block timestamp
         require(amount > 0, "No pending emissions");
 
+        // Note: this line assumes START_TIME is a multiple of WEEK.
         lastEmissionTime = block.timestamp - (block.timestamp % WEEK);
 
         // Execute the transfer through the Safe
