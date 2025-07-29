@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
@@ -12,6 +13,7 @@ import {CypherToken} from "src/CypherToken.sol";
 import {IVotingEscrow} from "src/interfaces/IVotingEscrow.sol";
 import {VotingEscrow} from "src/VotingEscrow.sol";
 
+import {MockVeNftUsageOracle} from "test/mocks/MockVeNftUsageOracle.sol";
 import {ReenteringActor} from "test/mocks/ReenteringActor.sol";
 import {ReenteringToken} from "test/mocks/ReenteringToken.sol";
 
@@ -27,13 +29,35 @@ contract VotingEscrowUnitTest is Test {
 
     function setUp() public {
         cypher = new CypherToken(address(this));
-        ve = new VotingEscrow(address(cypher));
+        ve = new VotingEscrow(address(this), address(cypher));
         cypher.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
     }
 
     function testConstruction() public view {
+        assert(ve.owner() == address(this));
+        assert(ve.cypher() == cypher);
         assert(ve.nextId() == 1);
+        assertEq(address(ve.veNftUsageOracle()), address(0));
+    }
+
+    function testSetVeNftUsageOracle() public {
+        address oracle = address(0x8888);
+
+        assertEq(address(ve.veNftUsageOracle()), address(0));
+        vm.expectEmit(true, true, true, true);
+        emit IVotingEscrow.VeNftUsageOracleUpdated(oracle);
+        ve.setVeNftUsageOracle(oracle);
+        assertEq(address(ve.veNftUsageOracle()), oracle);
+
+        // Setting the same oracle again is fine.
+        ve.setVeNftUsageOracle(oracle);
+
+        address notOwner = address(~uint160(ve.owner()));
+
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, notOwner));
+        vm.prank(notOwner);
+        ve.setVeNftUsageOracle(oracle);
     }
 
     function testCreatLockBasic() public {
@@ -54,7 +78,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testCreateLockReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 1e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -113,7 +137,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testCreateLockForReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 1e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -190,7 +214,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testDepositForReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -278,7 +302,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testIncreaseUnlockTimeReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -362,6 +386,7 @@ contract VotingEscrowUnitTest is Test {
         ve.increaseUnlockTime(id, end - 3 * VOTE_PERIOD);
     }
 
+    // Covers that an owner is authorized to withdraw their own NFT.
     function testWithdrawBasic() public {
         uint256 id = ve.createLock(1e18, 17 * VOTE_PERIOD);
 
@@ -370,12 +395,75 @@ contract VotingEscrowUnitTest is Test {
         vm.warp(end);
 
         uint256 cypherBalBefore = cypher.balanceOf(address(this));
-        ve.withdraw(id);
+
+        ve.withdraw(id, false);
 
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id));
         ve.ownerOf(id);
 
         assertEq(cypher.balanceOf(address(this)), cypherBalBefore + amount.toUint256());
+
+        (int128 amountAfter, uint256 endAfter, bool isIndefiniteAfter) = ve.locked(id);
+        assertEq(amountAfter, 0);
+        assertEq(endAfter, 0);
+        assert(!isIndefiniteAfter);
+    }
+
+    function testWithdrawToSender() public {
+        uint256 id = ve.createLock(1e18, 17 * VOTE_PERIOD);
+
+        (int128 amount, uint256 end,) = ve.locked(id);
+
+        vm.warp(end);
+
+        address other = address(0x1234);
+        assert(other != address(this));
+        ve.approve(other, id);
+
+        uint256 cypherBalOwnerBefore = cypher.balanceOf(address(this));
+        uint256 cypherBalSenderBefore = cypher.balanceOf(other);
+
+        vm.startPrank(other);
+        ve.withdraw(id, false);
+        vm.stopPrank();
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id));
+        ve.ownerOf(id);
+
+        assertEq(cypher.balanceOf(address(this)), cypherBalOwnerBefore);
+        assertEq(cypher.balanceOf(other), cypherBalSenderBefore + amount.toUint256());
+
+        (int128 amountAfter, uint256 endAfter, bool isIndefiniteAfter) = ve.locked(id);
+        assertEq(amountAfter, 0);
+        assertEq(endAfter, 0);
+        assert(!isIndefiniteAfter);
+    }
+
+    function testWithdrawToOwner() public {
+        uint256 id = ve.createLock(1e18, 17 * VOTE_PERIOD);
+
+        (int128 amount, uint256 end,) = ve.locked(id);
+
+        vm.warp(end);
+
+        address other = address(0x1234);
+        assert(other != address(this));
+        ve.approve(other, id);
+
+        uint256 cypherBalOwnerBefore = cypher.balanceOf(address(this));
+        uint256 cypherBalSenderBefore = cypher.balanceOf(other);
+
+        assertEq(ve.ownerOf(id), address(this));
+
+        vm.startPrank(other);
+        ve.withdraw(id, true);
+        vm.stopPrank();
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id));
+        ve.ownerOf(id);
+
+        assertEq(cypher.balanceOf(address(this)), cypherBalOwnerBefore + amount.toUint256());
+        assertEq(cypher.balanceOf(other), cypherBalSenderBefore);
 
         (int128 amountAfter, uint256 endAfter, bool isIndefiniteAfter) = ve.locked(id);
         assertEq(amountAfter, 0);
@@ -395,14 +483,14 @@ contract VotingEscrowUnitTest is Test {
 
         vm.startPrank(other);
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InsufficientApproval.selector, other, id));
-        ve.withdraw(id);
+        ve.withdraw(id, false);
         vm.stopPrank();
 
         ve.approve(other, id);
         uint256 cypherBalOtherBefore = cypher.balanceOf(other);
 
         vm.startPrank(other);
-        ve.withdraw(id);
+        ve.withdraw(id, false);
         vm.stopPrank();
 
         assertEq(cypher.balanceOf(other) - cypherBalOtherBefore, uint256(int256(amount)));
@@ -410,7 +498,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testWithdrawReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -422,7 +510,7 @@ contract VotingEscrowUnitTest is Test {
         ReenteringActor reenterer = new ReenteringActor();
         reenterer.setTarget(address(ve));
 
-        bytes memory withdrawData = abi.encodeWithSelector(IVotingEscrow.withdraw.selector, id);
+        bytes memory withdrawData = abi.encodeWithSelector(IVotingEscrow.withdraw.selector, id, false);
         bytes memory makeCallData = abi.encodeWithSelector(ReenteringActor.makeCall.selector, withdrawData);
         token.setCall(address(reenterer), makeCallData);
         ve.approve(address(reenterer), id);
@@ -439,7 +527,7 @@ contract VotingEscrowUnitTest is Test {
         token.setCall(address(reenterer), makeCallData);
 
         vm.expectRevert(ReentrancyGuard.ReentrancyGuardReentrantCall.selector);
-        ve.withdraw(id2);
+        ve.withdraw(id2, false);
     }
 
     function testWithdrawLockedIndefinitely() public {
@@ -449,7 +537,7 @@ contract VotingEscrowUnitTest is Test {
         vm.warp(end);
 
         vm.expectRevert(IVotingEscrow.LockedIndefinitely.selector);
-        ve.withdraw(id);
+        ve.withdraw(id, false);
     }
 
     function testWithdrawLockNotExpired() public {
@@ -458,22 +546,22 @@ contract VotingEscrowUnitTest is Test {
         vm.warp(end - 1);
 
         vm.expectRevert(IVotingEscrow.LockNotExpired.selector);
-        ve.withdraw(id);
+        ve.withdraw(id, false);
     }
 
     function testWithdrawTokenDoesNotExist() public {
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, 18));
-        ve.withdraw(18);
+        ve.withdraw(18, false);
 
         uint256 id = ve.createLock(1e18, 30 * VOTE_PERIOD);
         ve.createLock(1e18, 30 * VOTE_PERIOD); // ensure more tokens available to withdraw than just from the first lock
         (, uint256 end,) = ve.locked(id);
         vm.warp(end);
 
-        ve.withdraw(id);
+        ve.withdraw(id, false);
 
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, id));
-        ve.withdraw(id);
+        ve.withdraw(id, false);
     }
 
     function testLockIndefiniteBasic(uint256 tsSeed) public {
@@ -489,6 +577,7 @@ contract VotingEscrowUnitTest is Test {
 
         uint256 ts = tsSeed > block.timestamp ? tsSeed : block.timestamp + tsSeed;
         assertEq(ve.balanceOfAt(id, ts), 1e18);
+        assertEq(ve.totalSupplyAt(ts), 1e18);
     }
 
     function testLockIndefiniteAuthorization() public {
@@ -514,7 +603,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testLockIndefiniteReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -591,7 +680,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testUnlockIndefiniteReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 2e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -661,6 +750,37 @@ contract VotingEscrowUnitTest is Test {
         assertEq(amount, 9.1e18);
         assertEq(end, 0);
         assertTrue(isIndefinite);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
+        ve.ownerOf(idFrom);
+
+        (amount, end, isIndefinite) = ve.locked(idFrom);
+        assertEq(amount, 0);
+        assertEq(end, 0);
+        assertTrue(!isIndefinite);
+    }
+
+    function testMergeFromInUse() public {
+        MockVeNftUsageOracle oracle = new MockVeNftUsageOracle();
+        ve.setVeNftUsageOracle(address(oracle));
+
+        uint256 idFrom = ve.createLock(2e18, 3 * VOTE_PERIOD);
+        uint256 idTo = ve.createLock(5e18, 7 * VOTE_PERIOD);
+
+        oracle.setInUse(idFrom, true);
+
+        vm.expectRevert(abi.encodeWithSelector(IVotingEscrow.TokenInUse.selector, idFrom));
+        ve.merge(idFrom, idTo);
+
+        // Once the token is no longer in use, merging should work.
+        oracle.setInUse(idFrom, false);
+
+        ve.merge(idFrom, idTo);
+
+        (int128 amount, uint256 end, bool isIndefinite) = ve.locked(idTo);
+        assertEq(amount, 7e18);
+        assertEq(end, ((block.timestamp + 7 * VOTE_PERIOD) / VOTE_PERIOD) * VOTE_PERIOD);
+        assertTrue(!isIndefinite);
 
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, idFrom));
         ve.ownerOf(idFrom);
@@ -745,7 +865,7 @@ contract VotingEscrowUnitTest is Test {
 
     function testMergeReentrancy() public {
         ReenteringToken token = new ReenteringToken();
-        ve = new VotingEscrow(address(token));
+        ve = new VotingEscrow(address(this), address(token));
         token.mint(address(this), 100e18);
         token.approve(address(ve), type(uint256).max);
         vm.warp(INIT_TIMESTAMP);
@@ -970,6 +1090,62 @@ contract VotingEscrowUnitTest is Test {
         assertEq(ve.totalSupplyAt(ts), 0);
         assertEq(ve.balanceOfAt(id1, ts), 0);
         assertEq(ve.balanceOfAt(id2, ts), 0);
+    }
+
+    function testTokensOwnedBy() public {
+        uint256[] memory ids = new uint256[](3);
+        ids[0] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[1] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[2] = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        uint256[] memory tokensOwned = ve.tokensOwnedBy(address(this));
+        assertEq(tokensOwned.length, 3);
+        for (uint256 i; i < 3; i++) {
+            assertEq(tokensOwned[i], ids[i]);
+        }
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 0, 2);
+        assertEq(tokensOwned.length, 2);
+        for (uint256 i; i < 2; i++) {
+            assertEq(tokensOwned[i], ids[i]);
+        }
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 1, 2);
+        assertEq(tokensOwned.length, 2);
+        for (uint256 i; i < 2; i++) {
+            assertEq(tokensOwned[i], ids[i + 1]);
+        }
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 0, 3);
+        assertEq(tokensOwned.length, 3);
+        for (uint256 i; i < 3; i++) {
+            assertEq(tokensOwned[i], ids[i]);
+        }
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 0, 0);
+        assertEq(tokensOwned.length, 0);
+
+        tokensOwned = ve.tokensOwnedByFromIndexWithMax(address(this), 2, 3);
+        assertEq(tokensOwned.length, 1);
+        for (uint256 i; i < 1; i++) {
+            assertEq(tokensOwned[i], ids[i + 2]);
+        }
+    }
+
+    function testTokensOwnedByFromIndexWithMaxInvalidStartIndex() public {
+        vm.expectRevert(IVotingEscrow.InvalidStartIndex.selector);
+        ve.tokensOwnedByFromIndexWithMax(address(this), 0, 1);
+
+        uint256[] memory ids = new uint256[](3);
+        ids[0] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[1] = ve.createLock(1e18, MAX_LOCK_DURATION);
+        ids[2] = ve.createLock(1e18, MAX_LOCK_DURATION);
+
+        vm.expectRevert(IVotingEscrow.InvalidStartIndex.selector);
+        ve.tokensOwnedByFromIndexWithMax(address(this), 3, 1);
+
+        vm.expectRevert(IVotingEscrow.InvalidStartIndex.selector);
+        ve.tokensOwnedByFromIndexWithMax(address(this), 3, 0);
     }
 
     function _get2TimesTimestamp() internal view returns (uint256) {

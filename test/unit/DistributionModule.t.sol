@@ -66,6 +66,7 @@ contract DistributionModuleUnitTest is Test {
         assertEq(address(module.safe()), address(safe), "safe address incorrect");
         assertEq(module.emissionAddress(), emissionAddress, "emission address incorrect");
         assertEq(module.lastEmissionTime(), startTime, "last emission time incorrect");
+        assertEq(module.START_TIME(), startTime, "START_TIME incorrect");
     }
 
     function testConstructionReverts() public {
@@ -404,6 +405,7 @@ contract DistributionModuleUnitTest is Test {
 
         // Verify the module was created with correct lastEmissionTime
         assertEq(validModule.lastEmissionTime(), nextWeekBoundary, "Last emission time incorrect");
+        assertEq(validModule.START_TIME(), nextWeekBoundary, "START_TIME incorrect");
     }
 
     function testScheduleBoundaryEdgeCases() public {

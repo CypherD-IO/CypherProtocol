@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 import {ICypherToken} from "src/interfaces/ICypherToken.sol";
+import {IVeNftUsageOracle} from "./IVeNftUsageOracle.sol";
 
 interface IVotingEscrow is IERC721 {
     // --- Data Types ---
@@ -32,6 +33,8 @@ interface IVotingEscrow is IERC721 {
     }
 
     // --- Events ---
+
+    event VeNftUsageOracleUpdated(address newOracle);
 
     event CreateLock(
         address indexed from, address indexed to, uint256 indexed tokenId, uint256 value, uint256 unlockTime
@@ -67,6 +70,14 @@ interface IVotingEscrow is IERC721 {
     error NotLockedIndefinitely();
     error NewUnlockTimeNotAfterOld();
     error IdenticalTokenIds();
+    error TokenInUse(uint256 tokenId);
+    error InvalidStartIndex();
+
+    // --- Admin ---
+
+    /// @notice Sets the veNFT usage oracle.
+    /// @param newOracle The address of the new oracle
+    function setVeNftUsageOracle(address newOracle) external;
 
     // --- Mutations ---
 
@@ -96,7 +107,8 @@ interface IVotingEscrow is IERC721 {
     /// @notice Withdraw underlying tokens. Position must not be indefinitely locked and
     ///         must be fully decayed.
     /// @param tokenId Id of the veNFT to burn and return the deposit of
-    function withdraw(uint256 tokenId) external;
+    /// @param toTokenOwner If true, send funds to the owner of the token; if false, send them to the caller
+    function withdraw(uint256 tokenId, bool toTokenOwner) external;
 
     /// @notice Locked position with no decay.
     /// @param tokenId Id of the veNFT to lock indefinitely
@@ -114,6 +126,10 @@ interface IVotingEscrow is IERC721 {
     /// @notice The Cypher token.
     /// @return The Cypher token interface.
     function cypher() external view returns (ICypherToken);
+
+    // @notice The oracle used to determine whether a veNFT is in use.
+    // @return The veNFT usage oracle (as an interface).
+    function veNftUsageOracle() external view returns (IVeNftUsageOracle);
 
     /// @notice The id that will be assigned to the next created veNFT.
     /// @return The id of the next veNFT (returned by either `createLock` or `createLockFor`)
@@ -174,7 +190,22 @@ interface IVotingEscrow is IERC721 {
     /// @return isAuthorized Whether the actor can vote on behalf of the tokenId
     function isAuthorizedToVoteFor(address actor, uint256 tokenId) external view returns (bool isAuthorized);
 
-    /// @notice Calculate total voting power (not including indefinitely locked positions)
+    /// @notice Get the tokens owned by a given address as an array.
+    /// @param owner The address to fetch the owned tokens of.
+    /// @return tokenIds The array of owned tokens (empty if none are owned by the provided address).
+    function tokensOwnedBy(address owner) external view returns (uint256[] memory tokenIds);
+
+    /// @notice Get a consecutive subset of the tokens owned by a given address as an array.
+    /// @param owner The address to fetch the owned tokens of.
+    /// @param startIndex Index of the first token id owned by the user to fetch.
+    /// @param maxTokens The maximum number of tokens to fetch (may be larger than the fetchable tokens).
+    /// @return tokenIds An array of up to maxTokens owned tokens from the given start index.
+    function tokensOwnedByFromIndexWithMax(address owner, uint256 startIndex, uint256 maxTokens)
+        external
+        view
+        returns (uint256[] memory tokenIds);
+
+    /// @notice Calculate total voting power (including indefinitely locked positions).
     /// @param timestamp Time at which to caluclate voting power
     /// @return totalSupply The total decaying vote weight at the given timestamp
     function totalSupplyAt(uint256 timestamp) external view returns (uint256 totalSupply);

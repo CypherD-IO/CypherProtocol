@@ -31,6 +31,9 @@ contract DistributionModule is Ownable {
     /// @notice Gnosis Safe that holds the tokens
     address public immutable safe;
 
+    /// @notice Timestamp at which the distributions first begin.
+    uint256 public immutable START_TIME;
+
     /// @notice Last emission timestamp
     uint256 public lastEmissionTime;
 
@@ -69,6 +72,7 @@ contract DistributionModule is Ownable {
         require(_startTime > block.timestamp, "Invalid start time");
         require(_startTime % WEEK == 0, "Start time must be at week boundary");
 
+        START_TIME = _startTime;
         lastEmissionTime = _startTime;
 
         // First 24 months - 13 week periods
@@ -128,12 +132,14 @@ contract DistributionModule is Ownable {
     /// @notice Calculate pending emission amount
     /// @return amount Total tokens to be emitted
     function getPendingEmission() public view returns (uint256 amount) {
-        if (block.timestamp <= lastEmissionTime) return 0;
+        uint256 _lastEmissionTime = lastEmissionTime; // gas opt
+        if (block.timestamp <= _lastEmissionTime) return 0;
 
-        uint256 elapsedWeeks = (block.timestamp - lastEmissionTime) / WEEK;
+        uint256 elapsedWeeks = (block.timestamp - _lastEmissionTime) / WEEK;
         if (elapsedWeeks == 0) return 0;
 
-        for (uint256 i = 0; i < emissionSchedules.length; i++) {
+        uint256 len = emissionSchedules.length; // gas opt
+        for (uint256 i = 0; i < len; i++) {
             EmissionSchedule memory schedule = emissionSchedules[i];
 
             // Skip if schedule hasn't started
@@ -142,16 +148,16 @@ contract DistributionModule is Ownable {
             uint256 scheduleEndTime = schedule.startTime + (schedule.durationWeeks * WEEK);
 
             // Skip if we're past this schedule's end time
-            if (lastEmissionTime >= scheduleEndTime) continue;
+            if (_lastEmissionTime >= scheduleEndTime) continue;
 
             // Calculate end time within this schedule's bounds
             uint256 effectiveEndTime = Math.min(block.timestamp, scheduleEndTime);
 
             // Calculate actual weeks to count based on effective times
             uint256 weeksToCount;
-            if (lastEmissionTime >= schedule.startTime) {
+            if (_lastEmissionTime >= schedule.startTime) {
                 // If we're starting within this schedule period
-                weeksToCount = (effectiveEndTime - lastEmissionTime) / WEEK;
+                weeksToCount = (effectiveEndTime - _lastEmissionTime) / WEEK;
             } else {
                 // If we're starting before this schedule period
                 weeksToCount = (effectiveEndTime - schedule.startTime) / WEEK;
@@ -176,6 +182,7 @@ contract DistributionModule is Ownable {
         ///  updated to the current block timestamp
         require(amount > 0, "No pending emissions");
 
+        // Note: this line assumes START_TIME is a multiple of WEEK.
         lastEmissionTime = block.timestamp - (block.timestamp % WEEK);
 
         // Execute the transfer through the Safe
