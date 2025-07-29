@@ -1,0 +1,437 @@
+// SPDX-License-Identifier: BUSL-1.1
+pragma solidity =0.8.28;
+
+import {IElection} from "./interfaces/IElection.sol";
+import {IVeNftUsageOracle} from "./interfaces/IVeNftUsageOracle.sol";
+import {IVotingEscrow} from "./interfaces/IVotingEscrow.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
+contract Election is IElection, Ownable, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    // --- Constants ---
+
+    uint256 private constant VOTE_PERIOD = 2 weeks;
+
+    // --- Immutables ---
+
+    uint256 public immutable INITIAL_PERIOD_START;
+    IVotingEscrow public immutable ve;
+
+    // --- Storage ---
+
+    mapping(bytes32 candidate => bool isCandidate) public isCandidate;
+    mapping(address token => bool isBribeToken) public isBribeToken;
+    mapping(uint256 tokenId => uint256 timestamp) public lastVoteTime;
+    mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votes)) public votesForCandidateInPeriod;
+    mapping(uint256 tokenId => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 votes))) public
+        votesByTokenForCandidateInPeriod;
+    mapping(address bribeToken => mapping(bytes32 candidate => mapping(uint256 periodStart => uint256 amount))) public
+        amountOfBribeTokenForCandidateInPeriod;
+
+    // Each bit of each entry in an array stored in the below mapping is used to flag whether a user has claimed for
+    // a particular period. 11 * 256 = 2816; with 2 week periods, this allows for storing over 108 years of records.
+    mapping(
+        uint256 tokenId => mapping(address bribeToken => mapping(bytes32 candidate => uint256[11] bribeClaimRecords))
+    ) private bribeClaimRecords;
+
+    // Vote persistence--allow identical re-voting to be automated.
+    mapping(uint256 tokenId => bytes32[] candidates) public votedCandidates;
+    mapping(uint256 tokenId => uint256[] weights) public votedWeights;
+    mapping(address keeper => bool canRefreshVotes) public isVoteRefresher;
+    uint256 public maxVotedCandidates = 50; // Just a reasonable default value.
+
+    // --- Constructor ---
+
+    constructor(
+        address initialOwner,
+        address votingEscrow,
+        uint256 startTime,
+        bytes32[] memory startingCandidates,
+        address[] memory startingBribeTokens
+    ) Ownable(initialOwner) {
+        ve = IVotingEscrow(votingEscrow);
+
+        require(startTime > block.timestamp, "invalid start time");
+
+        // Important--this requirement synchronizes Election voting periods with
+        // VotingEscrow epochs, and means that locks always expire at the end of voting periods.
+        // This prevents re-voting with tokens that were voted with and then withdrawn in the
+        // same period. If this is ever changed then either:
+        // 1) The VotingEscrow must block withdrawals for tokens that voted within the current period.
+        //    This is undesirable because governance can change the VotingEscrow's veNFT usage oracle
+        //    to something that always returns false and block withdrawals indefinitely for all users.
+        // 2) The VotingEscrow must be changed to accommodate the same epoch schedule as the Election.
+        //    This is undesirable as the VotingEscrow is battle-tested code and changes should be minimized.
+        require(startTime % VOTE_PERIOD == 0, "start time not a multiple of VOTE_PERIOD");
+
+        INITIAL_PERIOD_START = startTime;
+
+        /// enable starting candidates
+        for (uint256 i = 0; i < startingCandidates.length; i++) {
+            _enableCandidate(startingCandidates[i]);
+        }
+
+        /// enable starting bribe tokens
+        for (uint256 i = 0; i < startingBribeTokens.length; i++) {
+            _enableBribeToken(startingBribeTokens[i]);
+        }
+    }
+
+    function _enableCandidate(bytes32 candidate) private {
+        if (isCandidate[candidate]) revert CandidateAlreadyEnabled();
+        isCandidate[candidate] = true;
+        emit CandidateEnabled(candidate);
+    }
+
+    function _disableCandidate(bytes32 candidate) private {
+        if (!isCandidate[candidate]) revert CandidateNotEnabled();
+        isCandidate[candidate] = false;
+        emit CandidateDisabled(candidate);
+    }
+
+    function _enableBribeToken(address token) private {
+        if (isBribeToken[token]) revert BribeTokenAlreadyEnabled();
+        isBribeToken[token] = true;
+        emit BribeTokenEnabled(token);
+    }
+
+    // --- Mutations ---
+
+    /// @inheritdoc IElection
+    function enableCandidate(bytes32 candidate) external onlyOwner {
+        _enableCandidate(candidate);
+    }
+
+    /// @inheritdoc IElection
+    function batchEnableCandidates(bytes32[] calldata candidates) external onlyOwner {
+        for (uint256 i; i < candidates.length; i++) {
+            _enableCandidate(candidates[i]);
+        }
+    }
+
+    /// @inheritdoc IElection
+    function disableCandidate(bytes32 candidate) external onlyOwner {
+        _disableCandidate(candidate);
+    }
+
+    /// @inheritdoc IElection
+    function batchDisableCandidates(bytes32[] calldata candidates) external onlyOwner {
+        for (uint256 i; i < candidates.length; i++) {
+            _disableCandidate(candidates[i]);
+        }
+    }
+
+    /// @inheritdoc IElection
+    function enableBribeToken(address token) external onlyOwner {
+        _enableBribeToken(token);
+    }
+
+    /// @inheritdoc IElection
+    function disableBribeToken(address token) external onlyOwner {
+        if (!isBribeToken[token]) revert BribeTokenNotEnabled();
+        isBribeToken[token] = false;
+        emit BribeTokenDisabled(token);
+    }
+
+    /// @inheritdoc IElection
+    function authorizeVoteRefresher(address keeper) external onlyOwner {
+        if (isVoteRefresher[keeper]) revert AlreadyVoteRefresher();
+        isVoteRefresher[keeper] = true;
+        emit VoteRefresherAuthorized(keeper);
+    }
+
+    /// @inheritdoc IElection
+    function deauthorizeVoteRefresher(address keeper) external onlyOwner {
+        if (!isVoteRefresher[keeper]) revert NotVoteRefresher();
+        isVoteRefresher[keeper] = false;
+        emit VoteRefresherDeauthorized(keeper);
+    }
+
+    /// @inheritdoc IElection
+    function setMaxVotedCandidates(uint256 newMaxVotedCandidates) external onlyOwner {
+        if (newMaxVotedCandidates < 1) revert ZeroMaxVotedCandidates();
+        maxVotedCandidates = newMaxVotedCandidates;
+        emit MaxVotedCandidatesSet(newMaxVotedCandidates);
+    }
+
+    /// @inheritdoc IElection
+    function vote(uint256 tokenId, bytes32[] calldata candidates, uint256[] calldata weights) external nonReentrant {
+        if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedForVoting();
+        if (candidates.length == 0) revert NoCandidates();
+        if (candidates.length > maxVotedCandidates) revert TooManyCandidates();
+        if (candidates.length != weights.length) revert LengthMismatch();
+        if (block.timestamp < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod();
+        uint256 periodStart = _votingPeriodStart(block.timestamp);
+        if (lastVoteTime[tokenId] >= periodStart) revert AlreadyVoted();
+
+        uint256 power = ve.balanceOfAt(tokenId, block.timestamp);
+        if (power == 0) revert NoVotingPower();
+
+        lastVoteTime[tokenId] = block.timestamp;
+
+        uint256 len = weights.length;
+
+        uint256 totalWeight;
+        for (uint256 i = 0; i < len; i++) {
+            totalWeight += weights[i];
+        }
+
+        _clearVoteData(tokenId);
+
+        for (uint256 i = 0; i < len; i++) {
+            bytes32 candidate = candidates[i];
+            if (!isCandidate[candidate]) revert InvalidCandidate();
+
+            // Enforce uniqueness.
+            for (uint256 j = i + 1; j < len; j++) {
+                if (candidate == candidates[j]) revert DuplicateCandidate();
+            }
+
+            uint256 votesToAdd = power * weights[i] / totalWeight;
+            if (votesToAdd > 0) {
+                _doVote(tokenId, votesToAdd, candidate, periodStart);
+            }
+
+            votedCandidates[tokenId].push(candidate);
+            votedWeights[tokenId].push(weights[i]);
+        }
+    }
+
+    /// @inheritdoc IElection
+    function refreshVotesFor(uint256[] calldata tokenIds) external {
+        require(isVoteRefresher[msg.sender], CallerNotVoteRefresher());
+
+        uint256 periodStart = _votingPeriodStart(block.timestamp);
+        for (uint256 i; i < tokenIds.length; i++) {
+            uint256 tokenId = tokenIds[i];
+            if (lastVoteTime[tokenId] >= periodStart) continue;
+
+            uint256 numCandidatesVotedFor = votedCandidates[tokenId].length;
+            if (numCandidatesVotedFor == 0) continue;
+            if (numCandidatesVotedFor > maxVotedCandidates) continue;
+
+            uint256 power = ve.balanceOfAt(tokenId, block.timestamp);
+            if (power == 0) continue;
+
+            uint256 totalWeight;
+            bytes32[] memory candidates = new bytes32[](numCandidatesVotedFor);
+            uint256[] memory weights = new uint256[](numCandidatesVotedFor);
+            for (uint256 j; j < numCandidatesVotedFor; j++) {
+                candidates[j] = votedCandidates[tokenId][j];
+                if (!isCandidate[candidates[j]]) continue;
+                weights[j] = votedWeights[tokenId][j];
+                totalWeight += weights[j];
+            }
+
+            // This check catches the "no valid candidates" edge case.
+            if (totalWeight == 0) continue;
+
+            for (uint256 j; j < numCandidatesVotedFor; j++) {
+                uint256 votesToAdd = power * weights[j] / totalWeight;
+                if (votesToAdd > 0) {
+                    _doVote(tokenId, votesToAdd, candidates[j], periodStart);
+                }
+            }
+
+            lastVoteTime[tokenId] = block.timestamp;
+        }
+    }
+
+    /// @inheritdoc IElection
+    function clearVoteData(uint256 tokenId) external {
+        if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedToClearVoteDataFor(tokenId);
+        _clearVoteData(tokenId);
+    }
+
+    /// @inheritdoc IElection
+    function claimBribes(
+        uint256 tokenId,
+        address[] calldata bribeTokens,
+        bytes32[] calldata candidates,
+        uint256 from,
+        uint256 until
+    ) external nonReentrant {
+        /// assume that claim happens while user still owns the token
+        /// do not merge a token until bribes are claimed for it
+        if (!ve.isAuthorizedToVoteFor(msg.sender, tokenId)) revert NotAuthorizedToClaimBribesFor(tokenId);
+
+        uint256 firstPeriod = _votingPeriodStart(from);
+        uint256 lastPeriod = _votingPeriodStart(until);
+
+        if (lastPeriod >= _votingPeriodStart(block.timestamp)) revert CanOnlyClaimBribesForPastPeriods();
+
+        uint256 nBribeTokens = bribeTokens.length;
+        uint256[] memory owed = new uint256[](nBribeTokens);
+        uint256 nCandidates = candidates.length;
+        for (uint256 period = firstPeriod; period <= lastPeriod; period += VOTE_PERIOD) {
+            for (uint256 i = 0; i < nBribeTokens; i++) {
+                address bribeToken = bribeTokens[i];
+                for (uint256 j = 0; j < nCandidates; j++) {
+                    bytes32 candidate = candidates[j];
+
+                    uint256 totalBribeAmount = amountOfBribeTokenForCandidateInPeriod[bribeToken][candidate][period];
+                    if (totalBribeAmount == 0) continue; // No bribes available.
+
+                    uint256 totalVotes = votesForCandidateInPeriod[candidate][period];
+                    if (totalVotes == 0) continue; // No votes for candidate (any bribe value lost!).
+
+                    uint256 tokenVotes = votesByTokenForCandidateInPeriod[tokenId][candidate][period];
+                    if (tokenVotes == 0) continue; // Didn't vote for candidate this period.
+
+                    if (_isBribeClaimed(tokenId, bribeToken, candidate, period)) continue;
+
+                    // Note: precision loss here will make some dust amount of bribe tokens unclaimable.
+                    uint256 amount = totalBribeAmount * tokenVotes / totalVotes;
+                    owed[i] += amount;
+                    _recordBribeClaimed(tokenId, bribeToken, candidate, period);
+                    emit BribeClaimed(tokenId, bribeToken, candidate, period, amount);
+                }
+            }
+        }
+
+        for (uint256 i = 0; i < nBribeTokens; i++) {
+            uint256 amount = owed[i];
+            if (amount > 0) {
+                IERC20(bribeTokens[i]).safeTransfer(msg.sender, amount);
+            }
+        }
+    }
+
+    /// @inheritdoc IElection
+    function addBribe(address bribeToken, uint256 amount, bytes32 candidate) external nonReentrant {
+        if (!isBribeToken[bribeToken]) revert InvalidBribeToken();
+        if (!isCandidate[candidate]) revert InvalidCandidate();
+        if (amount == 0) revert ZeroAmount();
+        if (block.timestamp < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod();
+        uint256 periodStart = _votingPeriodStart(block.timestamp);
+        amountOfBribeTokenForCandidateInPeriod[bribeToken][candidate][periodStart] += amount;
+
+        // Note: fee-on-transfer not supported.
+        IERC20(bribeToken).safeTransferFrom(msg.sender, address(this), amount);
+        emit BribeAdded(bribeToken, candidate, periodStart, amount);
+    }
+
+    // --- Views ---
+
+    /// @inheritdoc IElection
+    function numVotedCandidates(uint256 tokenId) external view returns (uint256) {
+        return votedCandidates[tokenId].length;
+    }
+
+    /// @inheritdoc IElection
+    function hasClaimedBribe(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
+        external
+        view
+        returns (bool)
+    {
+        if (timestamp < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod();
+        uint256 periodStart = _votingPeriodStart(timestamp);
+        return _isBribeClaimed(tokenId, bribeToken, candidate, periodStart);
+    }
+
+    /// @inheritdoc IElection
+    function claimableAmount(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 timestamp)
+        external
+        view
+        returns (uint256)
+    {
+        if (timestamp < INITIAL_PERIOD_START) revert TimestampPrecedesFirstPeriod();
+        uint256 periodStart = _votingPeriodStart(timestamp);
+
+        unchecked {
+            // Bribes do not become claimable until a period has finished.
+            if (block.timestamp < periodStart + VOTE_PERIOD) return 0;
+        }
+
+        uint256 totalBribeAmount = amountOfBribeTokenForCandidateInPeriod[bribeToken][candidate][periodStart];
+        if (totalBribeAmount == 0) return 0;
+
+        uint256 totalVotes = votesForCandidateInPeriod[candidate][periodStart];
+        if (totalVotes == 0) return 0;
+
+        uint256 tokenVotes = votesByTokenForCandidateInPeriod[tokenId][candidate][periodStart];
+        if (tokenVotes == 0) return 0;
+
+        if (_isBribeClaimed(tokenId, bribeToken, candidate, periodStart)) return 0;
+
+        return totalBribeAmount * tokenVotes / totalVotes;
+    }
+
+    /// @inheritdoc IVeNftUsageOracle
+    function isInUse(uint256 tokenId) external view returns (bool) {
+        return lastVoteTime[tokenId] >= _votingPeriodStart(block.timestamp);
+    }
+
+    // --- Internals ---
+
+    /// @dev Voting periods are time intervals of the form [ INITIAL_PERIOD_START + N * VOTE_PERIOD, INITIAL_PERIOD_START + (N + 1) * VOTE_PERIOD )
+    ///      (first bound is included, second is excluded).
+    /// @dev Reverts when timestamp < INITIAL_PERIOD_START, this will prevent voting/bribing/etc if an explicit check is missed.
+    function _votingPeriodStart(uint256 timestamp) private view returns (uint256) {
+        return INITIAL_PERIOD_START + ((timestamp - INITIAL_PERIOD_START) / VOTE_PERIOD) * VOTE_PERIOD;
+    }
+
+    function _doVote(uint256 tokenId, uint256 votesToAdd, bytes32 candidate, uint256 periodStart) private {
+        votesForCandidateInPeriod[candidate][periodStart] += votesToAdd;
+        votesByTokenForCandidateInPeriod[tokenId][candidate][periodStart] += votesToAdd;
+        emit Vote(tokenId, ve.ownerOf(tokenId), candidate, periodStart, votesToAdd);
+    }
+
+    function _isBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart)
+        private
+        view
+        returns (bool)
+    {
+        (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
+        uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
+        uint256 mask = 1 << bit;
+        return ((records[index] & mask) != 0);
+    }
+
+    function _recordBribeClaimed(uint256 tokenId, address bribeToken, bytes32 candidate, uint256 periodStart) private {
+        (uint256 index, uint256 bit) = _timeToBribeClaimCoordinates(periodStart);
+        uint256[11] storage records = bribeClaimRecords[tokenId][bribeToken][candidate];
+
+        // Set the bit at the bribe claim coordiantes to 1, marking the bribe as claimed for the
+        // corresponding 4-tuple of (tokenId, bribeToken, candidate, periodStart).
+        uint256 mask = 1 << bit;
+        records[index] |= mask;
+    }
+
+    /// @dev This function maps a current timestamp to a bit in an array of uint256 integers. The `index`
+    ///      return value is an index into the array; the `bit` return value is the bit position with that
+    ///      uint256. The zeroeth bit of the zeroeth entry corresponds to the first vote period, the
+    ///      1-indexed bit the second vote period, and so on. The zeroeth bit of the 1-indexed uint256 is
+    ///      the 257th vote period. Examples:
+    ///
+    ///      Suppose the initial vote period starts at time T (an even multiple of VOTE_PERIOD).
+    ///      A timestamp that is during the third vote period will be of the form:
+    ///      t_3 = T + 2 * VOTE_PERIOD + m      (where 0 <= m < VOTE_PERIOD)
+    ///      The bribe claim coordinates for t_3 are computed as:
+    ///      periodIndex = (t_3 - T) / VOTE_PERIOD = (2 * VOTE_PERIOD + m) / VOTE_PERIOD = 2
+    ///      index = periodIndex / 256 = 2 / 256 = 0
+    ///      bit = periodIndex % 256 = 2 % 256 = 2
+    ///      I.e. the coordinates are (0, 2)--the third bit (zero-indexed) of the first uint256 in the array of bribe claim records.
+    ///
+    ///      A timestamp during the 1,444th vote period will be of the form:
+    ///      t_1444 = T + 1443 * VOTE_PERIOD + m       (where 0 <= m < VOTE_PERIOD)
+    ///      The bribe claim coordinates for t_1444 are computed as:
+    ///      periodIndex = (t_1444 - T) / VOTE_PERIOD = (1443 * VOTE_PERIOD + m) / VOTE_PERIOD = 1443
+    ///      index = periodIndex / 256 = 1,443 / 256 = 5
+    ///      bit = periodIndex % 256 = 1,443 % 256 = 163
+    ///      I.e. the coordinates are (5, 163)--the 164th bit (zero-indexed) of the fifth uint256 in the array of bribe claim records.
+    function _timeToBribeClaimCoordinates(uint256 t) private view returns (uint256 index, uint256 bit) {
+        uint256 periodIndex = (t - INITIAL_PERIOD_START) / VOTE_PERIOD;
+        index = periodIndex / 256;
+        bit = periodIndex % 256;
+    }
+
+    function _clearVoteData(uint256 tokenId) private {
+        delete votedCandidates[tokenId];
+        delete votedWeights[tokenId];
+    }
+}
