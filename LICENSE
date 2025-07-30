@@ -1,14 +1,49 @@
 Business Source License 1.1
 
-Licensor: [Your Name or Organization]
+Licensor: Cypher Protocol
 
-Licensed Work: [Your Project Name or Description]
+Licensed Work: Cypher Protocol - Decentralized governance and incentive system
 
-Change Date: [MM-DD-YYYY]
+Change Date: 01-01-2028
 
-Change License: GNU General Public License version 2.0 or later
+Change License: Apache License version 2.0
 
 Terms:
 Permission is hereby granted to use the Licensed Work under the Business Source License 1.1 for any non-commercial purpose. For commercial use, explicit permission is required during the restriction period. On the Change Date, the Licensed Work will be made available under the Change License.
 
+Additional Terms:
+
+1. Commercial Use: Any use of the Licensed Work for commercial purposes, including but not limited to:
+
+   - Integration into commercial products or services
+   - Deployment on commercial networks or platforms
+   - Use by commercial entities for profit generation
+     Requires explicit written permission from the Licensor during the restriction period.
+
+2. Non-Commercial Use: The following uses are permitted without restriction:
+
+   - Personal or educational use
+   - Research and development
+   - Open source contributions and forks
+   - Community-driven development and testing
+
+3. Attribution: Any use of the Licensed Work must include:
+
+   - Copyright notice: "Copyright (c) 2024 Cypher Protocol"
+   - License reference: "Licensed under Business Source License 1.1"
+   - Link to license: https://mariadb.com/bsl11/
+
+4. Modification and Distribution:
+
+   - Modifications are permitted for non-commercial use
+   - Distribution of modified versions must include this license
+   - Source code must be made available with modifications
+
+5. Disclaimer: THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+6. Limitation of Liability: IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE LICENSED WORK.
+
 For full terms, see https://mariadb.com/bsl11/
+
+Contact Information:
+For commercial licensing inquiries, please contact: licensing@cypherd.io
