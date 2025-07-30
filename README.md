@@ -281,7 +281,8 @@ forge script SystemDeploy.s.sol \
 ### Audit Status
 
 - **Internal Review**: ✅ Complete
-- **External Audit**: 🔄 In Progress
+- **External Audit**: ✅ Audited by Oak Security
+- [Audit Report](https://github.com/oak-security/audit-reports/blob/main/Cypher%20Wallet/2025-07-30%20Audit%20Report%20-%20Cypher%20Protocol%20v1.4.pdf)
 
 ### Known Limitations
 
