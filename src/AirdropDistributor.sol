@@ -18,9 +18,7 @@ contract AirdropDistributor is IAirdropDistributor, Ownable, ReentrancyGuard {
     uint256 private nextRootId;
     mapping(uint256 id => bytes32 root) public override idToRoot;
     mapping(uint256 id => uint256 expiry) public override idToExpiry;
-    mapping(uint256 rootId => mapping(address claimant => bool hasClaimed))
-        public
-        override claimed;
+    mapping(uint256 rootId => mapping(address claimant => bool hasClaimed)) public override claimed;
 
     // --- NEW: Root status tracking ---
     /// @notice Mapping to track if a root is active (true) or inactive (false)
@@ -39,12 +37,9 @@ contract AirdropDistributor is IAirdropDistributor, Ownable, ReentrancyGuard {
     /// @notice Error thrown when trying to claim from an inactive root
     error RootInactive(uint256 rootId);
 
-    constructor(
-        address initialOwner,
-        address _cypherAddress,
-        address _votingEscrowAddress,
-        address _electionAddress
-    ) Ownable(initialOwner) {
+    constructor(address initialOwner, address _cypherAddress, address _votingEscrowAddress, address _electionAddress)
+        Ownable(initialOwner)
+    {
         cypher = ICypherToken(_cypherAddress);
         votingEscrow = IVotingEscrow(_votingEscrowAddress);
         election = IElection(_electionAddress);
@@ -57,28 +52,22 @@ contract AirdropDistributor is IAirdropDistributor, Ownable, ReentrancyGuard {
     /// @inheritdoc IAirdropDistributor
     /// @dev Note that this allows roots to be added multiple times. This is to allow for the exact same set
     ///      of claimants and claim amounts to recur.
-    function addRoot(
-        bytes32 root,
-        uint256 expiry
-    ) external onlyOwner returns (uint256 id) {
+    function addRoot(bytes32 root, uint256 expiry) external onlyOwner returns (uint256 id) {
         if (root == bytes32(0)) revert InvalidRoot();
         if (expiry < block.timestamp) revert InvalidExpiry();
         id = nextRootId++;
         idToRoot[id] = root;
         idToExpiry[id] = expiry;
-        
+
         // --- NEW: Set new root as active by default ---
         rootStatus[id] = true;
-        
+
         emit RootAdded(id, root, expiry);
     }
 
     /// @inheritdoc IAirdropDistributor
     /// @dev This allows the owner to withdraw the cypher tokens that are not claimed.
-    function withdraw(
-        address toAddress,
-        uint256 amount
-    ) external onlyOwner returns (bool) {
+    function withdraw(address toAddress, uint256 amount) external onlyOwner returns (bool) {
         return cypher.transfer(toAddress, amount);
     }
 
@@ -92,14 +81,7 @@ contract AirdropDistributor is IAirdropDistributor, Ownable, ReentrancyGuard {
         bytes32[] calldata candidates,
         uint256[] calldata weights
     ) external nonReentrant {
-        _claim(
-            proof,
-            rootId,
-            tokenAirdropValue,
-            nftTokenValue,
-            candidates,
-            weights
-        );
+        _claim(proof, rootId, tokenAirdropValue, nftTokenValue, candidates, weights);
     }
 
     // --- NEW: Root deactivation function ---
@@ -113,7 +95,7 @@ contract AirdropDistributor is IAirdropDistributor, Ownable, ReentrancyGuard {
         if (idToRoot[rootId] == bytes32(0)) {
             revert InvalidRootId(rootId);
         }
-        
+
         // Validate that the root is currently active
         if (!rootStatus[rootId]) {
             revert RootAlreadyInactive(rootId);
@@ -149,67 +131,42 @@ contract AirdropDistributor is IAirdropDistributor, Ownable, ReentrancyGuard {
         if (root == bytes32(0)) revert InvalidRootId(rootId);
         if (expiry < block.timestamp) revert ExpiredRoot(rootId, expiry);
         if (claimed[rootId][msg.sender]) revert AlreadyClaimed(rootId);
-        
+
         // --- NEW: Check if root is active before allowing claims ---
         if (!rootStatus[rootId]) {
             revert RootInactive(rootId);
         }
-        
-        if (
-            !MerkleProof.verifyCalldata(
-                proof,
-                root,
-                _hashLeaf(msg.sender, tokenAirdropValue, nftTokenValue)
-            )
-        ) revert InvalidProof(rootId);
+
+        if (!MerkleProof.verifyCalldata(proof, root, _hashLeaf(msg.sender, tokenAirdropValue, nftTokenValue))) {
+            revert InvalidProof(rootId);
+        }
 
         claimed[rootId][msg.sender] = true;
 
         if (tokenAirdropValue > 0) {
             cypher.transfer(msg.sender, tokenAirdropValue);
-            emit CypherTokenClaimed(
-                msg.sender,
-                tokenAirdropValue,
-                rootId,
-                root
-            );
+            emit CypherTokenClaimed(msg.sender, tokenAirdropValue, rootId, root);
         }
         if (nftTokenValue > 0) {
-            uint256 tokenId = votingEscrow.createLock(
-                nftTokenValue,
-                2 * 52 * 7 days
-            );
-            emit VeCypherNftClaimed(
-                msg.sender,
-                tokenId,
-                nftTokenValue,
-                rootId,
-                root
-            );
+            uint256 tokenId = votingEscrow.createLock(nftTokenValue, 2 * 52 * 7 days);
+            emit VeCypherNftClaimed(msg.sender, tokenId, nftTokenValue, rootId, root);
             if (weights.length > 0) {
                 election.vote(tokenId, candidates, weights);
             }
-            
+
             // Transfer the tokenId to msg.sender
             votingEscrow.transferFrom(address(this), msg.sender, tokenId);
         }
     }
 
-    function _hashLeaf(
-        address claimant,
-        uint256 tokenAirdropValue,
-        uint256 nftTokenValue
-    ) internal pure returns (bytes32) {
+    function _hashLeaf(address claimant, uint256 tokenAirdropValue, uint256 nftTokenValue)
+        internal
+        pure
+        returns (bytes32)
+    {
         // Matches the default behavior of OZ's Merkle tree library:
         // https://github.com/OpenZeppelin/merkle-tree/tree/master)
         // The double hashing mitigates any possibility of a second preimage attack.
-        return
-            keccak256(
-                bytes.concat(
-                    keccak256(
-                        abi.encode(claimant, tokenAirdropValue, nftTokenValue)
-                    )
-                )
-            );
+        return keccak256(bytes.concat(keccak256(abi.encode(claimant, tokenAirdropValue, nftTokenValue))));
     }
 }
