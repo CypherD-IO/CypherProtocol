@@ -13,9 +13,9 @@ contract TestnetRewardDistributor is IRewardDistributor, Ownable {
     uint256 private nextRootId;
     mapping(uint256 id => bytes32 root) public override idToRoot;
     mapping(uint256 rootId => mapping(address claimant => bool hasClaimed)) public override claimed;
-    
+
     // Root management state variables
-    mapping(uint256 rootId => bool public) public disabledRoots;
+    mapping(uint256 rootId => bool) public disabledRoots;
     bool public claimsPaused;
 
     // Events for root management and pausing
@@ -78,7 +78,7 @@ contract TestnetRewardDistributor is IRewardDistributor, Ownable {
     function disableRoot(uint256 rootId) external onlyOwner {
         if (idToRoot[rootId] == bytes32(0)) revert InvalidRootId(rootId);
         if (disabledRoots[rootId]) revert RootAlreadyDisabled(rootId);
-        
+
         disabledRoots[rootId] = true;
         emit RootDisabled(rootId, idToRoot[rootId]);
     }
@@ -90,7 +90,7 @@ contract TestnetRewardDistributor is IRewardDistributor, Ownable {
     function enableRoot(uint256 rootId) external onlyOwner {
         if (idToRoot[rootId] == bytes32(0)) revert InvalidRootId(rootId);
         if (!disabledRoots[rootId]) revert RootAlreadyEnabled(rootId);
-        
+
         disabledRoots[rootId] = false;
         emit RootEnabled(rootId, idToRoot[rootId]);
     }
@@ -102,7 +102,7 @@ contract TestnetRewardDistributor is IRewardDistributor, Ownable {
     /// @dev Emits ClaimsPaused event when successful
     function pauseClaims() external onlyOwner {
         if (claimsPaused) revert ClaimsAlreadyPaused();
-        
+
         claimsPaused = true;
         emit ClaimsPaused(msg.sender);
     }
@@ -112,7 +112,7 @@ contract TestnetRewardDistributor is IRewardDistributor, Ownable {
     /// @dev Emits ClaimsResumed event when successful
     function resumeClaims() external onlyOwner {
         if (!claimsPaused) revert ClaimsAlreadyResumed();
-        
+
         claimsPaused = false;
         emit ClaimsResumed(msg.sender);
     }
@@ -126,22 +126,20 @@ contract TestnetRewardDistributor is IRewardDistributor, Ownable {
         return disabledRoots[rootId];
     }
 
-
-
     // --- Internals ---
 
     function _claim(bytes32[] calldata proof, uint256 rootId, uint256 value) internal {
         // Check if claims are globally paused
         if (claimsPaused) revert ClaimsArePaused();
-        
+
         bytes32 root = idToRoot[rootId];
 
         if (root == bytes32(0)) revert InvalidRootId(rootId);
         if (claimed[rootId][msg.sender]) revert AlreadyClaimed(rootId);
-        
+
         // Check if the specific root is disabled
         if (disabledRoots[rootId]) revert RootIsDisabled(rootId);
-        
+
         if (!MerkleProof.verifyCalldata(proof, root, _hashLeaf(msg.sender, value))) revert InvalidProof(rootId);
 
         claimed[rootId][msg.sender] = true;
