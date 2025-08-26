@@ -17,7 +17,8 @@ contract TestnetRewardDistributorDeploy is Script {
         vm.startBroadcast();
 
         // Deploy the TestnetRewardDistributor contract
-        TestnetRewardDistributor distributor = TestnetRewardDistributor(deploy(address(0x4Cdb559aD4b9Deef56044b3BC5f438A0964a950c), usdc));
+        TestnetRewardDistributor distributor =
+            TestnetRewardDistributor(deploy(address(0x4Cdb559aD4b9Deef56044b3BC5f438A0964a950c), usdc));
 
         // End broadcast
         vm.stopBroadcast();
