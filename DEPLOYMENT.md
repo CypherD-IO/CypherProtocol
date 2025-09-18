@@ -9,6 +9,7 @@ This document provides instructions for deploying the Cypher Token (`CYPR`) to t
 The `CypherTokenDeploy` script deploys the Cypher Token contract to the Base network. The Cypher Token is an ERC20 token with Permit and Votes extensions, designed specifically for the Cypher ecosystem on Base.
 
 Key features of the Cypher Token:
+
 - Symbol: CYPR
 - Name: Cypher
 - Decimals: 18
@@ -20,6 +21,7 @@ Key features of the Cypher Token:
 Before running the deployment script, ensure you have the following:
 
 1. **Private Key Setup**
+
    - Ensure a keystore file exists for your deployer account:
      ```bash
      cast wallet import <deployer_name> --private-key <your_private_key>
@@ -49,7 +51,7 @@ TREASURY_ADDRESS=0x<YourTreasuryAddressHere> forge script CypherTokenDeploy -vvv
   --rpc-url base \
   --chain-id 8453 \
   --broadcast \
-  --account ~/.foundry/keystores/<your_keystore_file> \ 
+  --account ~/.foundry/keystores/<your_keystore_file> \
   --verify --etherscan-api-key <YOUR_BASESCAN_API_KEY>
 ```
 
@@ -60,7 +62,7 @@ TREASURY_ADDRESS=0xYourTreasuryAddressHere forge script CypherTokenDeploy -vvvvv
   --rpc-url https://sepolia.base.org \
   --chain-id 84531 \
   --broadcast \
-  --account ~/.foundry/keystores/<your_keystore_file> \ 
+  --account ~/.foundry/keystores/<your_keystore_file> \
   --verify --etherscan-api-key <YOUR_BASESCAN_API_KEY>
 ```
 
@@ -116,26 +118,29 @@ The result should be `1000000000000000000000000000` (1 billion tokens with 18 de
 ### 3. Basic Interaction Commands
 
 Check total supply:
+
 ```bash
 cast call <DEPLOYED_CONTRACT_ADDRESS> "totalSupply()(uint256)" --rpc-url base
 ```
 
 Check token name:
+
 ```bash
 cast call <DEPLOYED_CONTRACT_ADDRESS> "name()(string)" --rpc-url base
 ```
 
 Check token symbol:
+
 ```bash
 cast call <DEPLOYED_CONTRACT_ADDRESS> "symbol()(string)" --rpc-url base
 ```
-
 
 ## Cypher Smart Contract Deployment
 
 ## Overview
 
 This script will deploy all non-token contracts in the Cypher system.
+
 - `DistributionModule`: Sends emissions to the Reward Distributor
 - `RewardDistributor`: Distributes Cypher rewards via Merkle Proofs
 - `Election`: Manages the voting and bribing processes for Cypher governance
@@ -144,12 +149,14 @@ This script will deploy all non-token contracts in the Cypher system.
 ## Prerequisites
 
 Before running the deployment script, the following addresses must be set to their correct values in [8453.json](addresses/8453.json) as they are currently set to random values:
+
 - `TREASURY_MULTISIG`: The address to add the DistributionModule to
 - `GOVERNOR_MULTISIG`: The governor address
 - `CYPHER_TOKEN`: The Cypher Governance Token
 - `DEPLOYER_EOA`: The address being used to deploy the contracts
 
 ### Environment Variables
+
 - `START_TIME`: The start time at which point emissions will go live in unix time. This number modulo `7 * 86400` must equal 0 (be at the week boundary), otherwise deployment will fail.
 - `DO_UPDATE_JSON=true`: Set to true to update the addresses in the [8453.json](addresses/8453.json) file during deployment. This is set to false by default.
 - `ETHERSCAN_API_KEY`: Your etherscan API key for verifying the contracts on basescan.
@@ -160,16 +167,17 @@ To set the starting candidates and bribe tokens, you will need to change the [el
 
 ```json
 {
-    "candidates": [
-        "0xa210df63555e6bcab6f13f8827ac79db7a7a7dd84114b8f8c57a8f1e64619902"
-    ],
-    "tokens": ["CYPHER_TOKEN"]
+  "candidates": [
+    "0xa210df63555e6bcab6f13f8827ac79db7a7a7dd84114b8f8c57a8f1e64619902"
+  ],
+  "tokens": ["CYPHER_TOKEN"]
 }
 ```
 
 The tokens array should contain the identifiers of the tokens in the addresses.json file. The candidates array should contain the bytes32 hashes of the candidates you want to start with.
 
 ### Dry Run / Simulation
+
 To simulate the deployment without broadcasting transactions:
 
 ```bash
@@ -177,16 +185,17 @@ START_TIME=1743638400 forge script SystemDeploy -vvv --rpc-url base
 ```
 
 ### Deployment
+
 To deploy and verify the contracts on basescan, run the following command:
 
 ```bash
-START_TIME=1743638400 DO_UPDATE_JSON=true forge script SystemDeploy -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
+START_TIME=1743638400 DO_UPDATE_ADDRESS_JSON=true forge script SystemDeploy -vvv --rpc-url base --broadcast --verify --etherscan-api-key $ETHERSCAN_API_KEY --account ~/.foundry/keystores/<path_to_key_file>
 ```
-
 
 ### Post Deployment
 
 After deploying the smart contracts, the following steps should be taken:
+
 - Check the contracts have been verified on basescan by pasting each contract's addresses into [basescan](https://basescan.org/).
 - Check that [8453.json](addresses/8453.json) has been updated with the correct addresses. Ensure all 4 addresses were added to this file.
 - Check the changes in [8453.json](addresses/8453.json) into git.
