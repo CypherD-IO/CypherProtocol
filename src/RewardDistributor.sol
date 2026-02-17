@@ -48,7 +48,6 @@ contract RewardDistributor is IRewardDistributor, Ownable {
     }
 
     // --- Internals ---
-
     function _claim(bytes32[] calldata proof, uint256 rootId, uint256 value) internal {
         bytes32 root = idToRoot[rootId];
 
